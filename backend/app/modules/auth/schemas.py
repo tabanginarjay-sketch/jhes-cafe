@@ -5,7 +5,9 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class GoogleAuthRequest(BaseModel):
-    id_token: str = Field(..., description="Google ID Token from Google Identity Services")
+    id_token: Optional[str] = Field(default=None, description="Google ID Token from Google Identity Services")
+    code: Optional[str] = Field(default=None, description="Google Authorization Code from OAuth 2.0 flow")
+    redirect_uri: Optional[str] = Field(default=None, description="Redirect URI used in OAuth 2.0 flow")
     client_id: Optional[str] = Field(default=None, description="Optional Client ID for audience verification")
 
 

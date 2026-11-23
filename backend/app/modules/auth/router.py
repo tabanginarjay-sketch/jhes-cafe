@@ -24,6 +24,7 @@ from app.modules.auth.security import (
     clear_session_cookie,
     create_session_token,
     decode_session_token,
+    exchange_google_code_for_tokens,
     hash_password,
     set_session_cookie,
     verify_google_id_token,
@@ -49,12 +50,43 @@ async def authenticate_google(
     response: Response,
     request: Request,
 ) -> AuthSessionResponse:
-    # 1. Server-side token verification (signature, issuer, exp, aud)
-    try:
-        claims = await verify_google_id_token(
-            token_str=payload.id_token,
-            expected_client_id=payload.client_id or getattr(settings, "GOOGLE_CLIENT_ID", None),
+    if not payload.id_token and not payload.code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either Google id_token or authorization code is required.",
         )
+
+    # 1. Server-side token exchange and verification
+    claims = None
+    try:
+        if payload.code:
+            tokens = await exchange_google_code_for_tokens(
+                code=payload.code,
+                redirect_uri=payload.redirect_uri or "",
+                client_id=payload.client_id or getattr(settings, "GOOGLE_CLIENT_ID", None),
+            )
+            id_token_str = tokens.get("id_token")
+            if id_token_str:
+                claims = await verify_google_id_token(
+                    token_str=id_token_str,
+                    expected_client_id=payload.client_id or getattr(settings, "GOOGLE_CLIENT_ID", None),
+                )
+            else:
+                access_token = tokens.get("access_token")
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    userinfo_res = await client.get(
+                        "https://www.googleapis.com/oauth2/v3/userinfo",
+                        headers={"Authorization": f"Bearer {access_token}"},
+                    )
+                    if userinfo_res.status_code == 200:
+                        claims = userinfo_res.json()
+                    else:
+                        raise ValueError(f"Failed to fetch Google userinfo: {userinfo_res.text}")
+        elif payload.id_token:
+            claims = await verify_google_id_token(
+                token_str=payload.id_token,
+                expected_client_id=payload.client_id or getattr(settings, "GOOGLE_CLIENT_ID", None),
+            )
     except ValueError as val_err:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -65,6 +97,12 @@ async def authenticate_google(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to verify Google identity.",
+        )
+
+    if not claims:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not extract verified identity from Google credentials.",
         )
 
     verified_email = claims.get("email", "").lower().strip()

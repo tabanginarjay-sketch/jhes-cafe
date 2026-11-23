@@ -7,6 +7,7 @@ import {
   fetchUserByEmail,
   bindSocialAccountApi,
   authWithGoogle,
+  authWithGoogleCode,
   authRegister,
   authLogin,
   authGetMe,
@@ -20,6 +21,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   loginWithGoogle: (idToken: string, clientId?: string) => Promise<UserData>;
+  loginWithGoogleCode: (code: string, redirectUri: string, clientId?: string) => Promise<UserData>;
   registerWithEmail: (payload: {
     full_name: string;
     email: string;
@@ -84,6 +86,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     try {
       const resp = await authWithGoogle(idToken, clientId);
+      setUser(resp.user);
+      setSessionToken(resp.access_token);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
+      localStorage.setItem(TOKEN_KEY, resp.access_token);
+      localStorage.setItem("brew_and_co_last_device_email", resp.user.email);
+      return resp.user;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginWithGoogleCode = async (code: string, redirectUri: string, clientId?: string): Promise<UserData> => {
+    setIsLoading(true);
+    try {
+      const resp = await authWithGoogleCode(code, redirectUri, clientId);
       setUser(resp.user);
       setSessionToken(resp.access_token);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
@@ -275,6 +292,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         loginWithGoogle,
+        loginWithGoogleCode,
         registerWithEmail,
         loginWithEmail,
         register,

@@ -29,28 +29,93 @@ export async function POST(req: NextRequest) {
       // Fall through to Next.js serverless handler
     }
 
-    // 2. Next.js Serverless Google verification fallback
+    // 2. Next.js Serverless Google OAuth & Identity verification fallback
     const idToken = body.id_token || body.credential;
-    if (!idToken) {
+    const authCode = body.code;
+    const redirectUri = body.redirect_uri || "";
+
+    if (!idToken && !authCode) {
       return NextResponse.json(
-        { detail: "Google ID token is required." },
+        { detail: "Google authorization code or ID token is required." },
         { status: 400 }
       );
     }
 
-    // Verify token with Google's official endpoint
-    const googleRes = await fetch(
-      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`
-    );
+    const clientId = body.client_id || process.env.GOOGLE_CLIENT_ID || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
 
-    if (!googleRes.ok) {
+    let claims: any = null;
+
+    if (authCode) {
+      // Exchange authorization code for tokens
+      try {
+        const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            code: authCode,
+            client_id: clientId,
+            client_secret: clientSecret,
+            redirect_uri: redirectUri,
+            grant_type: "authorization_code",
+          }),
+        });
+
+        if (!tokenRes.ok) {
+          const errText = await tokenRes.text();
+          console.error("Google token exchange error:", errText);
+          return NextResponse.json(
+            { detail: `Google authorization code exchange failed: ${errText}` },
+            { status: 400 }
+          );
+        }
+
+        const tokenData = await tokenRes.json();
+        if (tokenData.id_token) {
+          const verifyRes = await fetch(
+            `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(tokenData.id_token)}`
+          );
+          if (verifyRes.ok) {
+            claims = await verifyRes.json();
+          }
+        }
+
+        if (!claims && tokenData.access_token) {
+          const userinfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` },
+          });
+          if (userinfoRes.ok) {
+            claims = await userinfoRes.json();
+          }
+        }
+      } catch (exchangeErr) {
+        return NextResponse.json(
+          { detail: `Failed to exchange Google authorization code: ${exchangeErr}` },
+          { status: 500 }
+        );
+      }
+    } else if (idToken) {
+      // Verify ID token with Google's official endpoint
+      const googleRes = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`
+      );
+
+      if (!googleRes.ok) {
+        return NextResponse.json(
+          { detail: "Invalid or expired Google identity token." },
+          { status: 401 }
+        );
+      }
+
+      claims = await googleRes.json();
+    }
+
+    if (!claims) {
       return NextResponse.json(
-        { detail: "Invalid or expired Google identity token." },
+        { detail: "Could not verify Google identity." },
         { status: 401 }
       );
     }
-
-    const claims = await googleRes.json();
     const verifiedEmail = String(claims.email || "").toLowerCase().trim();
     const verifiedName = claims.name || claims.given_name || "Valued Customer";
     const sub = String(claims.sub || "");

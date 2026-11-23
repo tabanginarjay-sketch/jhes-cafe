@@ -365,6 +365,26 @@ export async function authWithGoogle(idToken: string, clientId?: string): Promis
   return response.json();
 }
 
+export async function authWithGoogleCode(
+  code: string,
+  redirectUri: string,
+  clientId?: string
+): Promise<AuthSessionResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/google`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ code, redirect_uri: redirectUri, client_id: clientId }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.detail || "Google authentication failed");
+  }
+
+  return response.json();
+}
+
 export async function authRegister(payload: {
   full_name: string;
   email: string;

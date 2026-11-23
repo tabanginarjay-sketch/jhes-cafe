@@ -17,7 +17,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTarget = searchParams.get("redirect") || "/order";
-  const { loginWithEmail, loginWithGoogle } = useAuth();
+  const { loginWithEmail, loginWithGoogle, loginWithGoogleCode } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -31,7 +31,7 @@ function LoginForm() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [isForgotLoading, setIsForgotLoading] = useState(false);
 
-  // Auto-fill from this device's previous session if exists
+  // Auto-fill from this device's previous session if exists, and check for error param
   useEffect(() => {
     try {
       const saved = localStorage.getItem("brew_and_co_last_device_email");
@@ -42,7 +42,12 @@ function LoginForm() {
     } catch {
       // ignore
     }
-  }, []);
+
+    const errorParam = searchParams.get("error");
+    if (errorParam) {
+      setErrorMessage(decodeURIComponent(errorParam));
+    }
+  }, [searchParams]);
 
   // Initialize Google Identity Services if client ID is configured
   useEffect(() => {
@@ -114,7 +119,63 @@ function LoginForm() {
   };
 
   const handleGoogleLoginClick = () => {
-    router.push(`/auth/google?redirect=${encodeURIComponent(redirectTarget)}`);
+    setErrorMessage(null);
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    const redirectUri = `${window.location.origin}/auth/google/callback`;
+
+    if (!clientId) {
+      setErrorMessage(
+        "Google Sign-In is configured. To enable the official Google Account Chooser in live environments, provide NEXT_PUBLIC_GOOGLE_CLIENT_ID."
+      );
+      return;
+    }
+
+    // 1. If GIS oauth2 code client is ready, open official Google Account Chooser in popup
+    if (typeof window !== "undefined" && window.google?.accounts?.oauth2) {
+      try {
+        const codeClient = window.google.accounts.oauth2.initCodeClient({
+          client_id: clientId,
+          scope: "openid email profile",
+          ux_mode: "popup",
+          prompt: "select_account", // Enforces official Google Account Chooser
+          callback: async (response: { code?: string; error?: string }) => {
+            if (response.code) {
+              setIsSubmitting(true);
+              try {
+                await loginWithGoogleCode(response.code, redirectUri, clientId);
+                router.push(redirectTarget);
+              } catch (err) {
+                setErrorMessage(err instanceof Error ? err.message : "Google authentication failed.");
+              } finally {
+                setIsSubmitting(false);
+              }
+            } else if (response.error) {
+              setErrorMessage(`Google authentication error: ${response.error}`);
+            }
+          },
+          error_callback: (error: any) => {
+            if (error?.type !== "popup_closed") {
+              setErrorMessage("Google account selection was canceled or blocked.");
+            }
+          },
+        });
+        codeClient.requestCode();
+        return;
+      } catch (err) {
+        console.warn("GIS popup notice, falling back to OAuth redirect:", err);
+      }
+    }
+
+    // 2. Full official OAuth 2.0 Authorization Flow (ChatGPT style)
+    const googleAuthUrl = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    googleAuthUrl.searchParams.set("client_id", clientId);
+    googleAuthUrl.searchParams.set("redirect_uri", redirectUri);
+    googleAuthUrl.searchParams.set("response_type", "code");
+    googleAuthUrl.searchParams.set("scope", "openid email profile");
+    googleAuthUrl.searchParams.set("prompt", "select_account"); // Guarantees official Google Account Chooser
+    googleAuthUrl.searchParams.set("access_type", "offline");
+    googleAuthUrl.searchParams.set("state", encodeURIComponent(redirectTarget));
+    window.location.href = googleAuthUrl.toString();
   };
 
   const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
@@ -172,7 +233,7 @@ function LoginForm() {
                     d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
                   />
                 </svg>
-                <span>Login with Google</span>
+                <span>Continue with Google</span>
               </button>
 
               {/* Prepared Facebook Button (Phase 2 Ready) */}

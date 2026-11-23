@@ -148,3 +148,33 @@ async def verify_google_id_token(
     except Exception as remote_err:
         logger.error(f"Google token verification failed: {remote_err}")
         raise ValueError("Invalid or expired Google credential.")
+
+
+async def exchange_google_code_for_tokens(
+    code: str,
+    redirect_uri: str,
+    client_id: Optional[str] = None,
+    client_secret: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Exchanges an authorization code with Google's official OAuth 2.0 token endpoint.
+    Used when customer completes the official Google Account Chooser flow.
+    """
+    code = code.strip()
+    if not code:
+        raise ValueError("Authorization code is required.")
+
+    payload = {
+        "code": code,
+        "client_id": client_id or getattr(settings, "GOOGLE_CLIENT_ID", ""),
+        "client_secret": client_secret or getattr(settings, "GOOGLE_CLIENT_SECRET", ""),
+        "redirect_uri": redirect_uri,
+        "grant_type": "authorization_code",
+    }
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post("https://oauth2.googleapis.com/token", data=payload)
+        if resp.status_code != 200:
+            logger.error(f"Google token exchange failed ({resp.status_code}): {resp.text}")
+            raise ValueError(f"Google code exchange failed: {resp.text}")
+        return resp.json()
