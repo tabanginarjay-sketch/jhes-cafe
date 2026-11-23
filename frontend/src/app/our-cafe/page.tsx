@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { CafeHeroSection } from "@/components/cafe/CafeHeroSection";
 import { SeatingExperienceSection } from "@/components/cafe/SeatingExperienceSection";
 import { InteriorGalleryLightbox } from "@/components/cafe/InteriorGalleryLightbox";
@@ -26,7 +26,9 @@ export default function OurCafePage() {
       <InteriorGalleryLightbox />
 
       {/* 4. TABLE RESERVATIONS: Functional booking form with Auth Guard, slot validation & Airtable persistence */}
-      <TableBookingSection preselectedZoneId={selectedZoneId} />
+      <Suspense fallback={<div className="py-20 text-center text-[#573B2C] text-xs">Loading reservation concierge...</div>}>
+        <TableBookingSection preselectedZoneId={selectedZoneId} />
+      </Suspense>
 
       {/* 5. CAFÉ DETAILS: Hours, location, contact, and Google Maps directions CTA */}
       <CafeDetailsMapSection />
