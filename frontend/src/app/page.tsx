@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { HeroSection } from "@/components/home/HeroSection";
-import { DiscountVoucherSlider } from "@/components/home/DiscountVoucherSlider";
 import { BestSellers } from "@/components/home/BestSellers";
 import { OurSpaceGallery } from "@/components/home/OurSpaceGallery";
 import { HomeCustomizer } from "@/components/home/HomeCustomizer";
@@ -19,10 +18,7 @@ export default function Home() {
       {/* 1. Cinematic Hero Section */}
       <HeroSection />
 
-      {/* 2. Horizontal Scrolling Discount Vouchers & Live Offers Slider */}
-      <DiscountVoucherSlider />
-
-      {/* 3. Best Sellers & Seasonal Reserve Menu */}
+      {/* 2. Best Sellers & Seasonal Reserve Menu */}
       <BestSellers />
 
       {/* 3. Our Space & Café Interior Editorial Gallery */}
