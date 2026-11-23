@@ -1,0 +1,5 @@
+item_name,sku,category,stock_quantity,unit,reorder_threshold,supplier,last_restocked
+Amadeo Cavite Liberica Beans 1kg,BEAN-LIB-01,coffee_beans,15,kg,5,Amadeo Heritage Farm,2026-11-20
+Benguet Typica Whole Beans 1kg,BEAN-TYP-01,coffee_beans,12,kg,4,Atok Benguet Cooperative,2026-11-21
+Barista Oat Milk 1L,MILK-OAT-01,dairy,24,pcs,8,Oatside Philippines,2026-11-22
+Wild Tagaytay Honey 500ml,SYR-HNY-01,syrups,10,pcs,3,Silang Cavite Apiary,2026-11-18

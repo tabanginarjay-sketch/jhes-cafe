@@ -1,0 +1,47 @@
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: jhes-cafe-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_NAME=Jhe's Cafe' API
+      - APP_ENV=production
+      - DEBUG=false
+      - AIRTABLE_PAT=${AIRTABLE_PAT}
+      - AIRTABLE_BASE_ID=${AIRTABLE_BASE_ID}
+      - CORS_ORIGINS=http://localhost:3002,http://127.0.0.1:3002
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/liveness')"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - jhes-cafe-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: jhes-cafe-frontend
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://backend:8000/api/v1
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - jhes-cafe-network
+
+networks:
+  jhes-cafe-network:
+    driver: bridge

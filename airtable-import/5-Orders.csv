@@ -1,0 +1,2 @@
+order_number,customer_name,customer_phone,customer_email,dining_option,status,total_amount,payment_status,payment_method,special_notes
+ORD-1001,Juan Ramos,+639171234567,juan@example.com,Dine-in,preparing,440,paid,gcash,Less ice on cold brew

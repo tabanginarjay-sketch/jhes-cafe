@@ -1,0 +1,5 @@
+name,slug,description,display_order,is_active
+Signature Espresso,signature-espresso,Rich espresso extractions with highland milk,1,true
+Cold Brews,cold-brews,18-hour slow-steeped mountain cold drip,2,true
+Warm Classics,warm-classics,Comforting hot lattes and pour overs,3,true
+Artisanal Pastries,artisanal-pastries,Freshly baked morning breads and cheesecakes,4,true
