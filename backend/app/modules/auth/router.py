@@ -217,8 +217,19 @@ async def register_email(
         created = await user_repo.create_raw(customer_data)
         user_id = str(created.get("id"))
     except Exception as create_err:
-        logger.error(f"Airtable registration error: {create_err}")
-        user_id = f"cust-{int(datetime.now().timestamp())}"
+        logger.warning(f"Airtable rich creation warning, falling back to core fields: {create_err}")
+        try:
+            core_data = {
+                "full_name": clean_name,
+                "email": clean_email,
+            }
+            if payload.phone:
+                core_data["phone"] = payload.phone.strip()
+            created = await user_repo.create_raw(core_data)
+            user_id = str(created.get("id"))
+        except Exception as core_err:
+            logger.error(f"Airtable fallback creation error: {core_err}")
+            user_id = f"cust-{int(datetime.now().timestamp())}"
 
     # Issue session
     is_prod = settings.APP_ENV.lower() == "production"

@@ -70,16 +70,22 @@ export async function POST(req: NextRequest) {
       if (existing.length > 0) {
         user = existing[0];
       } else {
-        user = await airtableCreate("Users", {
-          full_name: verifiedName,
-          email: verifiedEmail,
-          role: "customer",
-          loyalty_points: 25,
-          auth_provider: "google",
-          provider_sub_id: sub,
-          avatar_url: picture,
-          is_active: true,
-        });
+        try {
+          user = await airtableCreate("Users", {
+            full_name: verifiedName,
+            email: verifiedEmail,
+          });
+        } catch {
+          user = {
+            id: `google-${sub.slice(0, 10)}`,
+            full_name: verifiedName,
+            email: verifiedEmail,
+            role: "customer",
+            loyalty_points: 25,
+            auth_provider: "google",
+            avatar_url: picture,
+          };
+        }
       }
     } catch (dbErr) {
       user = {

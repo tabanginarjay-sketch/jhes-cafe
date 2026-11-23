@@ -51,23 +51,26 @@ export async function POST(req: NextRequest) {
     }
 
     // Never grant admin privileges through public registration
-    const user = await airtableCreate("Users", {
-      full_name: full_name.trim(),
-      email: cleanEmail,
-      phone: phone ? String(phone).trim() : undefined,
-      role: "customer",
-      loyalty_points: 25,
-      auth_provider: "email",
-      is_active: true,
-    }).catch(() => ({
-      id: `cust-${Date.now()}`,
+    let airtableUser: any = null;
+    try {
+      airtableUser = await airtableCreate("Users", {
+        full_name: full_name.trim(),
+        email: cleanEmail,
+        ...(phone ? { phone: String(phone).trim() } : {}),
+      });
+    } catch (airtableErr) {
+      console.warn("Airtable create note:", airtableErr);
+    }
+
+    const user = {
+      id: airtableUser?.id || `cust-${Date.now()}`,
       full_name: full_name.trim(),
       email: cleanEmail,
       phone: phone || null,
       role: "customer",
       loyalty_points: 25,
       auth_provider: "email",
-    }));
+    };
 
     const token = `jhes_jwt_${Buffer.from(JSON.stringify({ sub: user.id, email: cleanEmail, role: "customer", name: user.full_name })).toString("base64url")}`;
 
