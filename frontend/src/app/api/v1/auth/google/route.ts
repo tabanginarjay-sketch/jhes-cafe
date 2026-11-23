@@ -59,67 +59,93 @@ export async function POST(req: NextRequest) {
 
     if (authCode) {
       // Exchange authorization code for tokens with Google
-      try {
-        const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
+      // We try the provided redirect_uri, 'postmessage' (required for GIS popup),
+      // and registered URIs to guarantee zero redirect_uri_mismatch errors
+      const candidateUris = [
+        redirectUri,
+        "postmessage",
+        "https://jhescafe.vercel.app/auth/google/callback",
+        "http://localhost:3002/auth/google/callback",
+        "https://jhescafe.vercel.app",
+        "",
+      ].filter((u, i, arr) => u !== undefined && arr.indexOf(u) === i);
+
+      let tokenData: any = null;
+      let lastErrorText = "";
+
+      for (const uri of candidateUris) {
+        try {
+          const bodyParams: Record<string, string> = {
             code: authCode,
             client_id: clientId,
             client_secret: clientSecret,
-            redirect_uri: redirectUri,
             grant_type: "authorization_code",
-          }),
-        });
-
-        if (!tokenRes.ok) {
-          const errText = await tokenRes.text();
-          console.error("Google token exchange error:", errText);
-          return NextResponse.json(
-            { detail: `Google authorization code exchange failed: ${errText}` },
-            { status: 400 }
-          );
-        }
-
-        const tokenData = await tokenRes.json();
-
-        // 1. Direct JWT decode of id_token payload (verified by TLS session from Google)
-        if (tokenData.id_token) {
-          try {
-            const parts = tokenData.id_token.split(".");
-            if (parts.length === 3) {
-              const payloadJson = Buffer.from(parts[1], "base64url").toString("utf-8");
-              claims = JSON.parse(payloadJson);
-            }
-          } catch (jwtErr) {
-            console.warn("Direct JWT parse notice:", jwtErr);
+          };
+          if (uri) {
+            bodyParams.redirect_uri = uri;
           }
 
-          // Fallback to tokeninfo if claims missing
-          if (!claims) {
-            const verifyRes = await fetch(
-              `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(tokenData.id_token)}`
-            );
-            if (verifyRes.ok) {
-              claims = await verifyRes.json();
-            }
-          }
-        }
-
-        // 2. Fallback to Google userinfo if ID token missing
-        if (!claims && tokenData.access_token) {
-          const userinfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-            headers: { Authorization: `Bearer ${tokenData.access_token}` },
+          const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams(bodyParams),
           });
-          if (userinfoRes.ok) {
-            claims = await userinfoRes.json();
+
+          if (tokenRes.ok) {
+            tokenData = await tokenRes.json();
+            break;
+          } else {
+            const errText = await tokenRes.text();
+            lastErrorText = errText;
+            // Only retry with next candidate if error is redirect_uri_mismatch
+            if (!errText.includes("redirect_uri_mismatch")) {
+              break;
+            }
+          }
+        } catch (fetchErr) {
+          lastErrorText = String(fetchErr);
+        }
+      }
+
+      if (!tokenData) {
+        console.error("Google token exchange error:", lastErrorText);
+        return NextResponse.json(
+          { detail: `Google authorization code exchange failed: ${lastErrorText}` },
+          { status: 400 }
+        );
+      }
+
+      // 1. Direct JWT decode of id_token payload
+      if (tokenData.id_token) {
+        try {
+          const parts = tokenData.id_token.split(".");
+          if (parts.length === 3) {
+            const payloadJson = Buffer.from(parts[1], "base64url").toString("utf-8");
+            claims = JSON.parse(payloadJson);
+          }
+        } catch (jwtErr) {
+          console.warn("Direct JWT parse notice:", jwtErr);
+        }
+
+        // Fallback to tokeninfo if claims missing
+        if (!claims) {
+          const verifyRes = await fetch(
+            `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(tokenData.id_token)}`
+          );
+          if (verifyRes.ok) {
+            claims = await verifyRes.json();
           }
         }
-      } catch (exchangeErr) {
-        return NextResponse.json(
-          { detail: `Failed to exchange Google authorization code: ${exchangeErr}` },
-          { status: 500 }
-        );
+      }
+
+      // 2. Fallback to Google userinfo if ID token missing
+      if (!claims && tokenData.access_token) {
+        const userinfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+          headers: { Authorization: `Bearer ${tokenData.access_token}` },
+        });
+        if (userinfoRes.ok) {
+          claims = await userinfoRes.json();
+        }
       }
     } else if (idToken) {
       // Direct JWT decode first

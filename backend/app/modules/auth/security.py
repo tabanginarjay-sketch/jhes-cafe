@@ -164,17 +164,37 @@ async def exchange_google_code_for_tokens(
     if not code:
         raise ValueError("Authorization code is required.")
 
-    payload = {
-        "code": code,
-        "client_id": client_id or getattr(settings, "GOOGLE_CLIENT_ID", ""),
-        "client_secret": client_secret or getattr(settings, "GOOGLE_CLIENT_SECRET", ""),
-        "redirect_uri": redirect_uri,
-        "grant_type": "authorization_code",
-    }
+    c_id = client_id or getattr(settings, "GOOGLE_CLIENT_ID", "")
+    c_sec = client_secret or getattr(settings, "GOOGLE_CLIENT_SECRET", "")
 
+    candidate_uris = [
+        redirect_uri,
+        "postmessage",
+        "https://jhescafe.vercel.app/auth/google/callback",
+        "http://localhost:3002/auth/google/callback",
+        "https://jhescafe.vercel.app",
+        "",
+    ]
+    seen = set()
+    unique_candidates = [u for u in candidate_uris if u is not None and not (u in seen or seen.add(u))]
+
+    last_error = ""
     async with httpx.AsyncClient(timeout=10.0) as client:
-        resp = await client.post("https://oauth2.googleapis.com/token", data=payload)
-        if resp.status_code != 200:
-            logger.error(f"Google token exchange failed ({resp.status_code}): {resp.text}")
-            raise ValueError(f"Google code exchange failed: {resp.text}")
-        return resp.json()
+        for uri in unique_candidates:
+            payload = {
+                "code": code,
+                "client_id": c_id,
+                "client_secret": c_sec,
+                "grant_type": "authorization_code",
+            }
+            if uri:
+                payload["redirect_uri"] = uri
+            resp = await client.post("https://oauth2.googleapis.com/token", data=payload)
+            if resp.status_code == 200:
+                return resp.json()
+            last_error = resp.text
+            if "redirect_uri_mismatch" not in last_error:
+                break
+
+    logger.error(f"Google token exchange failed: {last_error}")
+    raise ValueError(f"Google code exchange failed: {last_error}")

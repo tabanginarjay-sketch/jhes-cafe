@@ -142,7 +142,8 @@ function LoginForm() {
             if (response.code) {
               setIsSubmitting(true);
               try {
-                await loginWithGoogleCode(response.code, redirectUri, clientId);
+                // Google Identity Services popup mode explicitly mandates 'postmessage' as redirect_uri
+                await loginWithGoogleCode(response.code, "postmessage", clientId);
                 router.push(redirectTarget);
               } catch (err) {
                 setErrorMessage(err instanceof Error ? err.message : "Google authentication failed.");
