@@ -6,9 +6,9 @@ export function HeroSection() {
   return (
     <section className="relative overflow-hidden bg-[#F5F0E7] border-b border-[#E5DACB]">
       {/* Background Ambience Layer */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 overflow-hidden">
         <div
-          className="w-full h-full bg-cover bg-center brightness-[0.88] contrast-[1.04]"
+          className="w-full h-full bg-cover bg-center brightness-[0.88] contrast-[1.04] animate-cinematic-zoom"
           style={{
             backgroundImage:
               "url('https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?auto=format&fit=crop&w=2000&q=85')",
@@ -26,27 +26,33 @@ export function HeroSection() {
           <div className="lg:col-span-7 space-y-8 text-left">
             
             {/* Subtle Botanical Badge */}
-            <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[#315640]/80 backdrop-blur-md border border-[#C9AE8B]/30 text-[#FFFCF7] text-xs font-medium tracking-wider uppercase">
-              <Sparkles className="w-3.5 h-3.5 text-[#C9AE8B]" />
-              <span>Highland Roastery &amp; Modern Coffee Lounge</span>
+            <div className="animate-fade-up animation-delay-100">
+              <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full bg-[#315640]/80 backdrop-blur-md border border-[#C9AE8B]/30 text-[#FFFCF7] text-xs font-medium tracking-wider uppercase">
+                <Sparkles className="w-3.5 h-3.5 text-[#C9AE8B]" />
+                <span>Highland Roastery &amp; Modern Coffee Lounge</span>
+              </div>
             </div>
 
             {/* Headline & Subtitle */}
             <div className="space-y-4">
-              <h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-[#FFFCF7] leading-[1.05]">
-                Your everyday <br />
-                <span className="italic font-normal text-[#C9AE8B]">coffee escape.</span>
-              </h1>
-              <p className="text-lg sm:text-xl text-[#F5F0E7]/90 font-light leading-relaxed max-w-xl">
-                Great coffee. Cozy spaces. Moments worth slowing down for.
-              </p>
+              <div className="animate-fade-up animation-delay-300">
+                <h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-[#FFFCF7] leading-[1.05]">
+                  Your everyday <br />
+                  <span className="italic font-normal text-[#C9AE8B]">coffee escape.</span>
+                </h1>
+              </div>
+              <div className="animate-fade-up animation-delay-500">
+                <p className="text-lg sm:text-xl text-[#F5F0E7]/90 font-light leading-relaxed max-w-xl">
+                  Great coffee. Cozy spaces. Moments worth slowing down for.
+                </p>
+              </div>
             </div>
 
             {/* Action CTAs */}
-            <div className="flex flex-wrap items-center gap-4 pt-2">
+            <div className="animate-fade-up animation-delay-700 flex flex-wrap items-center gap-4 pt-2">
               <Link
                 href="/menu"
-                className="inline-flex items-center justify-center gap-2.5 px-7 py-4 rounded-full bg-[#C9AE8B] hover:bg-[#DECDB8] text-[#173D2B] font-semibold text-sm tracking-wider uppercase transition-all duration-200 shadow-lg hover:shadow-xl active:scale-98"
+                className="inline-flex items-center justify-center gap-2.5 px-7 py-4 rounded-full bg-[#C9AE8B] hover:bg-[#DECDB8] text-[#173D2B] font-semibold text-sm tracking-wider uppercase transition-all duration-300 shadow-lg hover:shadow-2xl hover:scale-[1.02] active:scale-95"
               >
                 <span>Explore Our Menu</span>
                 <ArrowRight className="w-4 h-4" />
@@ -54,7 +60,7 @@ export function HeroSection() {
 
               <Link
                 href="/our-cafe"
-                className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/25 text-[#FFFCF7] font-semibold text-sm tracking-wider uppercase transition-all active:scale-98"
+                className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/25 text-[#FFFCF7] font-semibold text-sm tracking-wider uppercase transition-all duration-300 hover:scale-[1.02] active:scale-95"
               >
                 <MapPin className="w-4 h-4 text-[#C9AE8B]" />
                 <span>Experience The Space</span>

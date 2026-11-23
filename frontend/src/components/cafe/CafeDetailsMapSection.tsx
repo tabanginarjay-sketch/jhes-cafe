@@ -1,6 +1,7 @@
 "use client";
 
 import { MapPin, Clock, Phone, Mail, Navigation, Car, ShieldCheck, Heart, ExternalLink } from "lucide-react";
+import { ScrollReveal } from "@/components/common/ScrollReveal";
 
 export function CafeDetailsMapSection() {
   const googleMapsUrl =
@@ -10,19 +11,21 @@ export function CafeDetailsMapSection() {
     <section className="py-20 lg:py-28 bg-[#FFFCF7] border-t border-[#E5DACB]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
         
-        {/* Section Header */}
-        <div className="max-w-3xl space-y-3">
-          <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#315640]">
-            <MapPin className="w-3.5 h-3.5 text-[#C9AE8B]" />
-            <span>Visit The Flagship</span>
+        {/* Section Header with Scroll Reveal */}
+        <ScrollReveal direction="up" delay={0}>
+          <div className="max-w-3xl space-y-3">
+            <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#315640]">
+              <MapPin className="w-3.5 h-3.5 text-[#C9AE8B]" />
+              <span>Visit The Flagship</span>
+            </div>
+            <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-[#173D2B] tracking-tight">
+              How to find Jhe&apos;s Cafe&apos;.
+            </h2>
+            <p className="text-sm sm:text-base text-[#573B2C] leading-relaxed">
+              Perched along the cool mountain ridge of Tagaytay, our roastery and coffee lounge is an easy drive from Manila, Cavite, and Laguna.
+            </p>
           </div>
-          <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-[#173D2B] tracking-tight">
-            How to find Jhe&apos;s Cafe&apos;.
-          </h2>
-          <p className="text-sm sm:text-base text-[#573B2C] leading-relaxed">
-            Perched along the cool mountain ridge of Tagaytay, our roastery and coffee lounge is an easy drive from Manila, Cavite, and Laguna.
-          </p>
-        </div>
+        </ScrollReveal>
 
         {/* Details Grid & Map */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch">

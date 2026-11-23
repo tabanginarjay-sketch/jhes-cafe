@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { createReservation, fetchReservations, type ReservationPayload } from "@/lib/api";
+import { ScrollReveal } from "@/components/common/ScrollReveal";
 
 export const ZONES = [
   {
@@ -141,22 +142,24 @@ export function TableBookingSection({
     <section id="reserve-table" className="py-20 lg:py-28 bg-[#F5F0E7] border-t border-[#E5DACB]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         
-        {/* Section Header */}
-        <div className="max-w-2xl text-left space-y-3">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#315640]">
-            Table &amp; Lounge Reservation
-          </span>
-          <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-[#173D2B] tracking-tight">
-            Reserve your quiet corner.
-          </h2>
-          <p className="text-sm sm:text-base text-[#573B2C] leading-relaxed">
-            Reserve your preferred seating zone in advance at Jhe&apos;s Cafe&apos;. We hold your table for up to 20 minutes past your confirmed time.
-          </p>
-        </div>
+        {/* Section Header with Scroll Reveal */}
+        <ScrollReveal direction="up" delay={0}>
+          <div className="max-w-2xl text-left space-y-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#315640]">
+              Table &amp; Lounge Reservation
+            </span>
+            <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-[#173D2B] tracking-tight">
+              Reserve your quiet corner.
+            </h2>
+            <p className="text-sm sm:text-base text-[#573B2C] leading-relaxed">
+              Reserve your preferred seating zone in advance at Jhe&apos;s Cafe&apos;. We hold your table for up to 20 minutes past your confirmed time.
+            </p>
+          </div>
+        </ScrollReveal>
 
         {/* Confirmed Screen */}
         {confirmedReservation ? (
-          <div className="max-w-2xl mx-auto rounded-3xl border border-[#315640]/30 bg-white p-8 sm:p-12 text-center space-y-6 shadow-xl animate-in fade-in duration-300">
+          <div className="max-w-2xl mx-auto rounded-3xl border border-[#315640]/30 bg-white p-8 sm:p-12 text-center space-y-6 shadow-2xl animate-scale-in">
             <div className="w-16 h-16 rounded-full bg-[#173D2B] text-[#C9AE8B] flex items-center justify-center mx-auto shadow-md">
               <CheckCircle2 className="w-8 h-8" />
             </div>
@@ -235,10 +238,10 @@ export function TableBookingSection({
                       key={zone.id}
                       type="button"
                       onClick={() => setSelectedZone(zone)}
-                      className={`p-5 rounded-2xl border text-left transition-all cursor-pointer space-y-2 ${
+                      className={`p-5 rounded-2xl border text-left cursor-pointer space-y-2 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 active:scale-[0.98] ${
                         isSelected
-                          ? "border-[#173D2B] bg-[#173D2B] text-white shadow-md scale-[1.01]"
-                          : "border-[#E5DACB] bg-white text-[#173D2B] hover:border-[#315640]"
+                          ? "border-[#173D2B] bg-[#173D2B] text-white shadow-lg scale-[1.01]"
+                          : "border-[#E5DACB] bg-white text-[#173D2B] hover:border-[#315640] hover:shadow-md"
                       }`}
                     >
                       <div className="flex items-center justify-between">
@@ -370,11 +373,11 @@ export function TableBookingSection({
                 </div>
               )}
 
-              {/* Submit Button */}
+              {/* Submit Button with Smooth Micro-Interaction */}
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full py-4 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg cursor-pointer disabled:opacity-60"
+                className="w-full py-4 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-300 shadow-md hover:shadow-xl hover:scale-[1.01] active:scale-95 cursor-pointer disabled:opacity-60"
               >
                 {isSubmitting ? (
                   <div className="flex items-center gap-2">
