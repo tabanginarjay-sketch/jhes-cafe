@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { airtableList, airtableCreate } from "@/lib/airtable";
 
 const DEFAULT_STAFF = [
-  { id: "BARISTA-01", name: "Jherald Ramos", email: "jhe@brewandco.ph", role: "Head Roaster & Manager", shift: "Morning (6:00 AM - 2:00 PM)", status: "Active" },
+  { id: "BARISTA-01", name: "Jhe Tabangin", email: "jhe@jhescafe.ph", role: "Head Roaster & Cafe Lead", shift: "Morning (6:00 AM - 2:00 PM)", status: "Active" },
   { id: "BARISTA-02", name: "Carlo Dizon", email: "carlo@brewandco.ph", role: "Senior Espresso Barista", shift: "Mid (10:00 AM - 6:00 PM)", status: "Active" },
   { id: "BARISTA-03", name: "Ana Reyes", email: "ana@brewandco.ph", role: "Latte Artist & Barista", shift: "Closing (2:00 PM - 10:00 PM)", status: "Active" },
   { id: "BARISTA-04", name: "Mark Mendoza", email: "mark@brewandco.ph", role: "Cold Brew Specialist", shift: "Morning (6:00 AM - 2:00 PM)", status: "Active" },

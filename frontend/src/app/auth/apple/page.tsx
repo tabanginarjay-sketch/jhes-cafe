@@ -1,10 +1,10 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { CheckCircle2, ShieldCheck, Fingerprint, Lock } from "lucide-react";
+import { CheckCircle2, Lock, Fingerprint } from "lucide-react";
 
 function AppleAuthContent() {
   const router = useRouter();
@@ -12,29 +12,56 @@ function AppleAuthContent() {
   const redirectTarget = searchParams.get("redirect") || "/order";
   const { bindSocialAccount } = useAuth();
 
-  const [hideEmail, setHideEmail] = useState(false);
+  const [deviceSavedEmail, setDeviceSavedEmail] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const emailToUse = hideEmail
-    ? "jherald.privaterelay@appleid.com"
-    : "jherald.ramos@icloud.com";
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("brew_and_co_last_device_email");
+      if (saved && saved.includes("@")) {
+        setDeviceSavedEmail(saved);
+        setEmail(saved);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
-  const handleAppleAuthorize = async () => {
+  const handleAppleAuthorize = async (targetEmail: string, targetName?: string) => {
+    const cleanEmail = targetEmail.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setStatusMessage("Please enter a valid Apple ID email address.");
+      return;
+    }
+
+    const resolvedName =
+      targetName?.trim() ||
+      cleanEmail
+        .split("@")[0]
+        .replace(/[._-]/g, " ")
+        .split(" ")
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ") ||
+      "Apple User";
+
     setIsProcessing(true);
     setStatusMessage("Authenticating with Face ID / Apple Account...");
     try {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setStatusMessage("Binding Apple ID to Jhe's Cafe' account...");
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setStatusMessage("Signing in to Jhe's Cafe'...");
 
-      const user = await bindSocialAccount("apple", emailToUse, "Jherald Ramos");
+      const user = await bindSocialAccount("apple", cleanEmail, resolvedName);
       setIsSuccess(true);
-      setStatusMessage(`✓ Apple ID bound as ${user.full_name}! Redirecting...`);
+      setStatusMessage(`✓ Signed in as ${user.full_name}! Redirecting...`);
 
       setTimeout(() => {
         router.push(redirectTarget);
-      }, 700);
+      }, 600);
     } catch (err) {
       setIsProcessing(false);
       setStatusMessage(err instanceof Error ? err.message : "Error connecting Apple ID");
@@ -73,47 +100,106 @@ function AppleAuthContent() {
           </div>
         )}
 
-        {/* Apple ID Card & Binding Selection */}
+        {/* Form with Native Device Autofill */}
         {!isProcessing && (
           <div className="space-y-4">
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-gray-400 uppercase tracking-wider font-semibold">
-                  Apple Account
-                </span>
-                <span className="text-[10px] text-emerald-400 font-mono">
-                  Verified
-                </span>
+            {deviceSavedEmail && (
+              <div className="p-3.5 rounded-2xl border border-white/10 bg-white/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-semibold text-gray-400 tracking-wider">
+                    Saved on this device
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeviceSavedEmail(null);
+                      setEmail("");
+                    }}
+                    className="text-[10px] text-gray-400 hover:text-white hover:underline"
+                  >
+                    Use another
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleAppleAuthorize(deviceSavedEmail)}
+                  className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition-all text-left cursor-pointer"
+                >
+                  <Fingerprint className="w-5 h-5 text-gray-300 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-white truncate">
+                      Continue as {deviceSavedEmail}
+                    </p>
+                    <p className="text-[11px] text-gray-400">Touch ID / Apple ID</p>
+                  </div>
+                </button>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-white">Jherald Ramos</p>
-                <p className="text-xs text-gray-400 font-mono mt-0.5">{emailToUse}</p>
-              </div>
-            </div>
+            )}
 
-            {/* Email Relay Option */}
-            <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between text-xs">
-              <div className="space-y-0.5">
-                <p className="font-medium text-gray-200">Hide My Email</p>
-                <p className="text-[11px] text-gray-400">Forward to {hideEmail ? "Apple Relay" : "Personal iCloud"}</p>
-              </div>
-              <input
-                type="checkbox"
-                checked={hideEmail}
-                onChange={(e) => setHideEmail(e.target.checked)}
-                className="w-4 h-4 accent-white rounded cursor-pointer"
-              />
-            </div>
-
-            {/* Main Authorize Button */}
-            <button
-              type="button"
-              onClick={handleAppleAuthorize}
-              className="w-full py-3.5 rounded-2xl bg-white hover:bg-gray-100 text-black text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg active:scale-98"
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAppleAuthorize(email, name);
+              }}
+              className="space-y-3.5"
             >
-              <Fingerprint className="w-4 h-4 text-black" />
-              <span>Continue with Touch ID / Apple ID</span>
-            </button>
+              <div>
+                <label
+                  htmlFor="apple-email"
+                  className="block text-xs font-semibold text-gray-300 mb-1"
+                >
+                  Apple ID / Email <span className="text-white">*</span>
+                </label>
+                <input
+                  id="apple-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  autoFocus
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@icloud.com"
+                  className="w-full p-3 rounded-xl border border-white/20 bg-white/10 text-xs text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-white transition-all"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Device auto-fill enabled. Tap to select from your device.
+                </p>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="apple-name"
+                  className="block text-xs font-semibold text-gray-300 mb-1"
+                >
+                  Name <span className="text-gray-500 font-normal">(Optional)</span>
+                </label>
+                <input
+                  id="apple-name"
+                  name="name"
+                  type="text"
+                  autoComplete="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Your Name"
+                  className="w-full p-3 rounded-xl border border-white/20 bg-white/10 text-xs text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-white transition-all"
+                />
+              </div>
+
+              {statusMessage && !isProcessing && (
+                <p className="text-xs text-amber-300 bg-amber-500/20 p-2.5 rounded-xl border border-amber-500/30">
+                  {statusMessage}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-3.5 rounded-xl bg-white hover:bg-gray-100 text-black text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg active:scale-98"
+              >
+                <Fingerprint className="w-4 h-4 text-black" />
+                <span>Continue with Apple ID</span>
+              </button>
+            </form>
           </div>
         )}
 

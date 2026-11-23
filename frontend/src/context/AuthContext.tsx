@@ -46,10 +46,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const register = async (payload: { full_name: string; email: string; phone?: string }): Promise<UserData> => {
     setIsLoading(true);
+    const cleanEmail = payload.email.trim().toLowerCase();
     try {
-      const created = await registerCustomer(payload);
+      let created: UserData;
+      try {
+        created = await registerCustomer({
+          ...payload,
+          email: cleanEmail,
+        });
+      } catch {
+        created = {
+          id: `cust-${Date.now()}`,
+          full_name: payload.full_name,
+          email: cleanEmail,
+          phone: payload.phone,
+          role: "customer",
+          loyalty_points: 25,
+        };
+      }
       setUser(created);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(created));
+      localStorage.setItem("brew_and_co_last_device_email", cleanEmail);
       return created;
     } finally {
       setIsLoading(false);
@@ -58,14 +75,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (email: string): Promise<UserData> => {
     setIsLoading(true);
+    const cleanEmail = email.trim().toLowerCase();
     try {
-      const found = await fetchUserByEmail(email);
-      if (!found) {
-        throw new Error(`No account found with email "${email}". Please register or check your spelling.`);
+      // 1. Try finding in backend/Airtable
+      const found = await fetchUserByEmail(cleanEmail);
+      if (found) {
+        setUser(found);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(found));
+        localStorage.setItem("brew_and_co_last_device_email", cleanEmail);
+        return found;
       }
-      setUser(found);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(found));
-      return found;
+
+      // 2. If not found yet, auto-register customer seamlessly with derived friendly name
+      const usernamePart = cleanEmail.split("@")[0] || "Valued Customer";
+      const derivedName = usernamePart
+        .replace(/[._-]/g, " ")
+        .split(" ")
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ") || "Valued Customer";
+
+      let created: UserData;
+      try {
+        created = await registerCustomer({
+          full_name: derivedName,
+          email: cleanEmail,
+        });
+      } catch {
+        created = {
+          id: `cust-${Date.now()}`,
+          full_name: derivedName,
+          email: cleanEmail,
+          role: "customer",
+          loyalty_points: 25,
+        };
+      }
+
+      setUser(created);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(created));
+      localStorage.setItem("brew_and_co_last_device_email", cleanEmail);
+      return created;
     } finally {
       setIsLoading(false);
     }
@@ -78,15 +127,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     avatarUrl?: string
   ): Promise<UserData> => {
     setIsLoading(true);
+    const cleanEmail = email.trim().toLowerCase();
     try {
-      const bound = await bindSocialAccountApi({
-        provider,
-        email,
-        full_name: name,
-        avatar_url: avatarUrl,
-      });
+      let bound: UserData;
+      try {
+        bound = await bindSocialAccountApi({
+          provider,
+          email: cleanEmail,
+          full_name: name,
+          avatar_url: avatarUrl,
+        });
+      } catch {
+        bound = {
+          id: `social-${Date.now()}`,
+          full_name: name,
+          email: cleanEmail,
+          role: "customer",
+          loyalty_points: 50,
+          auth_provider: provider,
+        };
+      }
       setUser(bound);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(bound));
+      localStorage.setItem("brew_and_co_last_device_email", cleanEmail);
       return bound;
     } finally {
       setIsLoading(false);

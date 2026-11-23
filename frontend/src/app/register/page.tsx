@@ -164,11 +164,14 @@ function RegisterForm() {
 
               {/* Full Name */}
               <div>
-                <label className="font-semibold text-[#173D2B] block mb-1.5">
+                <label htmlFor="reg-name" className="font-semibold text-[#173D2B] block mb-1.5">
                   Full Name <span className="text-amber-800">*</span>
                 </label>
                 <input
+                  id="reg-name"
+                  name="name"
                   type="text"
+                  autoComplete="name"
                   required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
@@ -180,11 +183,14 @@ function RegisterForm() {
               {/* Email & Phone Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="font-semibold text-[#173D2B] block mb-1.5">
+                  <label htmlFor="reg-email" className="font-semibold text-[#173D2B] block mb-1.5">
                     Email Address <span className="text-amber-800">*</span>
                   </label>
                   <input
+                    id="reg-email"
+                    name="email"
                     type="email"
+                    autoComplete="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -194,11 +200,14 @@ function RegisterForm() {
                 </div>
 
                 <div>
-                  <label className="font-semibold text-[#173D2B] block mb-1.5">
+                  <label htmlFor="reg-phone" className="font-semibold text-[#173D2B] block mb-1.5">
                     Mobile Number <span className="text-[10px] text-[#573B2C]/70">(Optional)</span>
                   </label>
                   <input
+                    id="reg-phone"
+                    name="tel"
                     type="tel"
+                    autoComplete="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="+63 917 123 4567"
@@ -210,11 +219,14 @@ function RegisterForm() {
               {/* Password & Confirm Password */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="relative">
-                  <label className="font-semibold text-[#173D2B] block mb-1.5">
+                  <label htmlFor="reg-pass" className="font-semibold text-[#173D2B] block mb-1.5">
                     Password <span className="text-amber-800">*</span>
                   </label>
                   <input
+                    id="reg-pass"
+                    name="password"
                     type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -236,15 +248,18 @@ function RegisterForm() {
                 </div>
 
                 <div>
-                  <label className="font-semibold text-[#173D2B] block mb-1.5">
+                  <label htmlFor="reg-confirm" className="font-semibold text-[#173D2B] block mb-1.5">
                     Confirm Password <span className="text-amber-800">*</span>
                   </label>
                   <input
+                    id="reg-confirm"
+                    name="confirm-password"
                     type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Re-type password"
+                    placeholder="Confirm password"
                     className="w-full rounded-xl border border-[#E5DACB] p-3.5 text-xs text-[#173D2B] placeholder:text-[#573B2C]/40 focus:outline-none focus:ring-2 focus:ring-[#173D2B]/20 focus:border-[#173D2B] transition-all bg-[#FFFCF7]"
                   />
                 </div>

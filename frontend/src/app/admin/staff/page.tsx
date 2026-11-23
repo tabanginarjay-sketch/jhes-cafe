@@ -63,7 +63,7 @@ export default function AdminStaffPage() {
   };
 
   const staffList = staff.length > 0 ? staff : [
-    { id: "BARISTA-01", name: "Jherald Ramos", email: "jhe@brewandco.ph", role: "Manager", shift: "Morning (6:00 AM - 2:00 PM)", status: "Active" },
+    { id: "BARISTA-01", name: "Jhe Tabangin", email: "jhe@jhescafe.ph", role: "Head Roaster & Cafe Lead", shift: "Morning (6:00 AM - 2:00 PM)", status: "Active" },
     { id: "BARISTA-02", name: "Carlo Dizon", email: "carlo@brewandco.ph", role: "Senior Barista", shift: "Closing (2:00 PM - 10:00 PM)", status: "Active" },
     { id: "BARISTA-03", name: "Ana Reyes", email: "ana@brewandco.ph", role: "Barista", shift: "Mid (10:00 AM - 6:00 PM)", status: "Active" },
   ];

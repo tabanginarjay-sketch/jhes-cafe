@@ -27,7 +27,7 @@ export default function AdminCustomersPage() {
     { id: "cust-1", full_name: "Juan Ramos", email: "juan@example.com", phone: "+63 917 123 4567", role: "customer", loyalty_points: 320 },
     { id: "cust-2", full_name: "Maria Santos", email: "maria@example.com", phone: "+63 918 987 6543", role: "vip", loyalty_points: 840 },
     { id: "cust-3", full_name: "Patricia Valdez", email: "patricia@example.com", phone: "+63 917 892 4110", role: "customer", loyalty_points: 150 },
-    { id: "cust-4", full_name: "Jherald Ramos", email: "jherald.ramos@gmail.com", phone: "+63 917 888 9900", role: "manager", loyalty_points: 1200 },
+    { id: "cust-4", full_name: "Alex Rivera", email: "alex.rivera@example.com", phone: "+63 917 555 4321", role: "customer", loyalty_points: 450 },
   ];
 
   return (

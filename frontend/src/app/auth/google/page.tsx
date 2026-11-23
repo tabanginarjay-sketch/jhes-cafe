@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { CheckCircle2, ArrowRight, ShieldCheck, UserCheck } from "lucide-react";
+import { CheckCircle2, ShieldCheck, User } from "lucide-react";
 
 function GoogleAuthContent() {
   const router = useRouter();
@@ -12,29 +12,57 @@ function GoogleAuthContent() {
   const redirectTarget = searchParams.get("redirect") || "/order";
   const { bindSocialAccount } = useAuth();
 
-  const [selectedEmail, setSelectedEmail] = useState("jherald.ramos@gmail.com");
-  const [selectedName, setSelectedName] = useState("Jherald Ramos");
-  const [isCustom, setIsCustom] = useState(false);
-  const [customEmail, setCustomEmail] = useState("");
-  const [customName, setCustomName] = useState("");
+  const [deviceSavedEmail, setDeviceSavedEmail] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const handleSelectAndBind = async (email: string, name: string) => {
-    setIsProcessing(true);
-    setStatusMessage("Authenticating with Google Accounts...");
+  // Check if this specific device already has a saved email in localStorage
+  useEffect(() => {
     try {
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      setStatusMessage("Binding Google profile to Jhe's Cafe' account...");
+      const saved = localStorage.getItem("brew_and_co_last_device_email");
+      if (saved && saved.includes("@")) {
+        setDeviceSavedEmail(saved);
+        setEmail(saved);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
-      const user = await bindSocialAccount("google", email, name);
+  const handleAuth = async (targetEmail: string, targetName?: string) => {
+    const cleanEmail = targetEmail.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setStatusMessage("Please enter a valid Google Account email.");
+      return;
+    }
+
+    const resolvedName =
+      targetName?.trim() ||
+      cleanEmail
+        .split("@")[0]
+        .replace(/[._-]/g, " ")
+        .split(" ")
+        .filter(Boolean)
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(" ") ||
+      "Google User";
+
+    setIsProcessing(true);
+    setStatusMessage("Authenticating with Google Account...");
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      setStatusMessage("Signing in to Jhe's Cafe'...");
+
+      const user = await bindSocialAccount("google", cleanEmail, resolvedName);
       setIsSuccess(true);
-      setStatusMessage(`✓ Connected as ${user.full_name}! Redirecting...`);
+      setStatusMessage(`✓ Signed in as ${user.full_name}! Redirecting...`);
 
       setTimeout(() => {
         router.push(redirectTarget);
-      }, 700);
+      }, 600);
     } catch (err) {
       setIsProcessing(false);
       setStatusMessage(err instanceof Error ? err.message : "Error connecting with Google");
@@ -70,11 +98,11 @@ function GoogleAuthContent() {
             Sign in with Google
           </h1>
           <p className="text-xs text-gray-500">
-            Choose an account to continue to <span className="font-semibold text-[#173D2B]">Jhe&apos;s Cafe&apos;</span>
+            to continue to <span className="font-semibold text-[#173D2B]">Jhe&apos;s Cafe&apos;</span>
           </p>
         </div>
 
-        {/* Status / Loader */}
+        {/* Processing Indicator */}
         {isProcessing && (
           <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 text-center space-y-2 animate-in fade-in">
             {isSuccess ? (
@@ -86,106 +114,109 @@ function GoogleAuthContent() {
           </div>
         )}
 
-        {/* Account Selection List */}
+        {/* Form with Native Device Autofill */}
         {!isProcessing && (
-          <div className="space-y-3">
-            {/* Primary Account: Jherald Ramos */}
-            <button
-              type="button"
-              onClick={() => handleSelectAndBind("jherald.ramos@gmail.com", "Jherald Ramos")}
-              className="w-full flex items-center gap-3.5 p-3.5 rounded-2xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/50 transition-all text-left group cursor-pointer"
-            >
-              <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                J
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 group-hover:text-blue-700 truncate">
-                  Jherald Ramos
-                </p>
-                <p className="text-xs text-gray-500 truncate">
-                  jherald.ramos@gmail.com
-                </p>
-              </div>
-              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                Bind
-              </span>
-            </button>
-
-            {/* Secondary Account: Jhe's Cafe' VIP */}
-            <button
-              type="button"
-              onClick={() => handleSelectAndBind("vip@jhescafe.ph", "Jhe's Cafe' VIP")}
-              className="w-full flex items-center gap-3.5 p-3.5 rounded-2xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/50 transition-all text-left group cursor-pointer"
-            >
-              <div className="w-10 h-10 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                JC
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-gray-900 group-hover:text-blue-700 truncate">
-                  Jhe&apos;s Cafe&apos; VIP Member
-                </p>
-                <p className="text-xs text-gray-500 truncate">
-                  vip@jhescafe.ph
-                </p>
-              </div>
-              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
-                Bind
-              </span>
-            </button>
-
-            {/* Custom Account Toggle */}
-            {!isCustom ? (
-              <button
-                type="button"
-                onClick={() => setIsCustom(true)}
-                className="w-full py-2.5 text-xs font-medium text-blue-600 hover:text-blue-800 text-center hover:underline cursor-pointer"
-              >
-                Use another Google account
-              </button>
-            ) : (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (customEmail && customName) {
-                    handleSelectAndBind(customEmail.trim(), customName.trim());
-                  }
-                }}
-                className="p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-3"
-              >
-                <p className="text-xs font-semibold text-gray-700">Enter custom Google account:</p>
-                <input
-                  type="text"
-                  placeholder="Full Name"
-                  required
-                  value={customName}
-                  onChange={(e) => setCustomName(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-gray-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <input
-                  type="email"
-                  placeholder="name@gmail.com"
-                  required
-                  value={customEmail}
-                  onChange={(e) => setCustomEmail(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-gray-300 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    className="flex-1 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold"
-                  >
-                    Bind &amp; Continue
-                  </button>
+          <div className="space-y-4">
+            {/* Quick 1-tap if user's own device previously stored an account */}
+            {deviceSavedEmail && (
+              <div className="p-3.5 rounded-2xl border border-blue-200 bg-blue-50/60 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-semibold text-blue-700 tracking-wider">
+                    Saved on this device
+                  </span>
                   <button
                     type="button"
-                    onClick={() => setIsCustom(false)}
-                    className="px-3 py-2 rounded-xl border border-gray-300 text-xs text-gray-600"
+                    onClick={() => {
+                      setDeviceSavedEmail(null);
+                      setEmail("");
+                    }}
+                    className="text-[10px] text-blue-600 hover:underline"
                   >
-                    Cancel
+                    Use another
                   </button>
                 </div>
-              </form>
+                <button
+                  type="button"
+                  onClick={() => handleAuth(deviceSavedEmail)}
+                  className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-white border border-blue-300 hover:border-blue-500 hover:shadow-xs transition-all text-left cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                    {deviceSavedEmail.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-900 truncate">
+                      Continue as {deviceSavedEmail}
+                    </p>
+                    <p className="text-[11px] text-gray-500">Tap to sign in instantly</p>
+                  </div>
+                </button>
+              </div>
             )}
+
+            {/* Standard Google Email Form with Native Autofill */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAuth(email, name);
+              }}
+              className="space-y-3.5"
+            >
+              <div>
+                <label
+                  htmlFor="google-email"
+                  className="block text-xs font-semibold text-gray-700 mb-1"
+                >
+                  Email or phone <span className="text-blue-600">*</span>
+                </label>
+                <input
+                  id="google-email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  autoFocus
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@gmail.com"
+                  className="w-full p-3 rounded-xl border border-gray-300 text-xs text-gray-900 placeholder:text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-2xs"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">
+                  Device auto-fill enabled. Tap above to select your device&apos;s Google Account.
+                </p>
+              </div>
+
+              <div>
+                <label
+                  htmlFor="google-name"
+                  className="block text-xs font-semibold text-gray-700 mb-1"
+                >
+                  Name <span className="text-gray-400 font-normal">(Optional)</span>
+                </label>
+                <input
+                  id="google-name"
+                  name="name"
+                  type="text"
+                  autoComplete="name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Your Name"
+                  className="w-full p-3 rounded-xl border border-gray-300 text-xs text-gray-900 placeholder:text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                />
+              </div>
+
+              {statusMessage && !isProcessing && (
+                <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                  {statusMessage}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
+              >
+                <span>Continue with Google</span>
+              </button>
+            </form>
           </div>
         )}
 
@@ -193,7 +224,7 @@ function GoogleAuthContent() {
         <div className="pt-4 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
           <span className="flex items-center gap-1">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            Official Google OAuth 2.0
+            Device Privacy Protected
           </span>
           <Link
             href={redirectTarget}
