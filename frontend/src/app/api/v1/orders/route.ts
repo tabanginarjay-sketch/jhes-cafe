@@ -33,7 +33,6 @@ export async function POST(req: NextRequest) {
       status: "pending",
       payment_method: body.payment_method || "cash",
       payment_status: "pending",
-      subtotal: Number(body.total_amount) || 0,
       total_amount: Number(body.total_amount) || 0,
       special_notes: body.special_notes || undefined,
     });
@@ -52,7 +51,7 @@ export async function POST(req: NextRequest) {
           subtotal: (Number(item.price || item.unit_price) || 0) * (Number(item.quantity) || 1),
           size: item.size || "Grande 16oz",
           temperature: item.temperature || "Hot",
-          milk: item.milk || "Whole Milk",
+          milk_type: item.milk || "Whole Milk",
         });
         createdItems.push(itemRecord);
       } catch (err) {
