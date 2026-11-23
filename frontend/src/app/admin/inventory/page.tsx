@@ -14,7 +14,7 @@ export default function AdminInventoryPage() {
       setLoading(true);
       const res = await fetch(`${API_BASE_URL}/inventory`, { cache: "no-store" });
       if (res.ok) setStock(await res.json());
-    } catch {}
+    } catch { }
     finally {
       setLoading(false);
     }

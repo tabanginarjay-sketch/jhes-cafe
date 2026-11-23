@@ -23,7 +23,7 @@ export function RotatingCoffeeCup() {
 
   return (
     <div className="relative flex flex-col items-center justify-center select-none">
-      
+
       {/* Ambient Warm Backlight Glow */}
       <div className="absolute w-72 h-72 sm:w-96 sm:h-96 rounded-full bg-gradient-to-tr from-[#C9AE8B]/30 via-[#315640]/35 to-[#173D2B]/60 blur-3xl pointer-events-none animate-ambient-glow" />
 
@@ -47,7 +47,7 @@ export function RotatingCoffeeCup() {
         onClick={toggleSpinMode}
         title="Click to change coffee spin speed!"
       >
-        
+
         {/* Outer Circular Seal Frame with Curved Letters on the Rim */}
         <div className="absolute inset-0 z-20 pointer-events-none animate-spin-reverse-slow">
           <svg viewBox="0 0 400 400" className="w-full h-full">

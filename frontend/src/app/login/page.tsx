@@ -62,9 +62,9 @@ function LoginForm() {
   return (
     <div className="py-16 sm:py-24 flex-1 flex items-center justify-center bg-[#FFFCF7] px-4">
       <div className="w-full max-w-md space-y-6">
-        
+
         <div className="rounded-3xl border border-[#E5DACB] bg-white p-8 sm:p-10 shadow-md space-y-6">
-          
+
           {/* Header */}
           <div className="text-center space-y-3">
             <div className="flex justify-center">
@@ -90,11 +90,10 @@ function LoginForm() {
               <button
                 type="button"
                 onClick={() => handleQuickSelect("juan@example.com")}
-                className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
-                  email === "juan@example.com"
-                    ? "border-[#173D2B] bg-[#173D2B] text-white"
-                    : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#173D2B]"
-                }`}
+                className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${email === "juan@example.com"
+                  ? "border-[#173D2B] bg-[#173D2B] text-white"
+                  : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#173D2B]"
+                  }`}
               >
                 <strong className="block leading-none">Juan Ramos</strong>
                 <span className="text-[9px] opacity-80">juan@example.com</span>
@@ -103,11 +102,10 @@ function LoginForm() {
               <button
                 type="button"
                 onClick={() => handleQuickSelect("maria@example.com")}
-                className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
-                  email === "maria@example.com"
-                    ? "border-[#173D2B] bg-[#173D2B] text-white"
-                    : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#173D2B]"
-                }`}
+                className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${email === "maria@example.com"
+                  ? "border-[#173D2B] bg-[#173D2B] text-white"
+                  : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#173D2B]"
+                  }`}
               >
                 <strong className="block leading-none">Maria Santos</strong>
                 <span className="text-[9px] opacity-80">maria@example.com</span>

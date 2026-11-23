@@ -297,3 +297,45 @@ export async function createCategory(payload: {
   }
   return response.json();
 }
+
+
+export interface ReservationPayload {
+  date: string;
+  time_slot: string;
+  zone: string;
+  guests: number | string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone?: string;
+  special_requests?: string;
+}
+
+export async function createReservation(payload: ReservationPayload) {
+  const response = await fetch(`${API_BASE_URL}/reservations`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.detail || `Reservation failed (HTTP ${response.status})`);
+  }
+
+  return response.json();
+}
+
+export async function fetchReservations(date?: string) {
+  const url = date ? `${API_BASE_URL}/reservations?date=${encodeURIComponent(date)}` : `${API_BASE_URL}/reservations`;
+  const response = await fetch(url, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    return [];
+  }
+  return response.json();
+}

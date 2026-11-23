@@ -140,7 +140,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             });
           }
         }
-      } catch {}
+      } catch { }
     }
     void checkLiveCatalog();
   }, [slug]);
@@ -162,7 +162,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   return (
     <div className="py-16 sm:py-24 bg-[#FFFCF7]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-        
+
         <Link
           href="/menu"
           className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#173D2B] hover:text-[#315640]"
@@ -227,11 +227,10 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                         key={s.name}
                         type="button"
                         onClick={() => setSize(s.name)}
-                        className={`py-2.5 px-2 rounded-xl border text-center transition-all cursor-pointer ${
-                          size === s.name
-                            ? "bg-[#173D2B] text-white border-[#173D2B] shadow-xs"
-                            : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#173D2B]"
-                        }`}
+                        className={`py-2.5 px-2 rounded-xl border text-center transition-all cursor-pointer ${size === s.name
+                          ? "bg-[#173D2B] text-white border-[#173D2B] shadow-xs"
+                          : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#173D2B]"
+                          }`}
                       >
                         <span className="font-semibold block">{s.name}</span>
                         <span className="text-[9px] opacity-75">{s.delta}</span>
@@ -249,11 +248,10 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                         key={t}
                         type="button"
                         onClick={() => setTemp(t)}
-                        className={`py-2 rounded-xl border font-semibold transition-all cursor-pointer ${
-                          temp === t
-                            ? "bg-[#173D2B] text-white border-[#173D2B]"
-                            : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#173D2B]"
-                        }`}
+                        className={`py-2 rounded-xl border font-semibold transition-all cursor-pointer ${temp === t
+                          ? "bg-[#173D2B] text-white border-[#173D2B]"
+                          : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#173D2B]"
+                          }`}
                       >
                         {t}
                       </button>
@@ -270,11 +268,10 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                         key={m}
                         type="button"
                         onClick={() => setMilk(m)}
-                        className={`py-2 px-1 text-[11px] rounded-xl border font-medium transition-all cursor-pointer ${
-                          milk === m
-                            ? "bg-[#173D2B] text-white border-[#173D2B]"
-                            : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#173D2B]"
-                        }`}
+                        className={`py-2 px-1 text-[11px] rounded-xl border font-medium transition-all cursor-pointer ${milk === m
+                          ? "bg-[#173D2B] text-white border-[#173D2B]"
+                          : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#173D2B]"
+                          }`}
                       >
                         {m}
                       </button>
@@ -287,9 +284,8 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             <button
               type="button"
               onClick={handleAdd}
-              className={`w-full py-4 rounded-full font-semibold text-xs tracking-wider uppercase transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer ${
-                isAdded ? "bg-emerald-800 text-white" : "bg-[#173D2B] hover:bg-[#315640] text-white"
-              }`}
+              className={`w-full py-4 rounded-full font-semibold text-xs tracking-wider uppercase transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer ${isAdded ? "bg-emerald-800 text-white" : "bg-[#173D2B] hover:bg-[#315640] text-white"
+                }`}
             >
               {isAdded ? (
                 <>

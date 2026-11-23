@@ -59,7 +59,7 @@ export function OurSpaceGallery() {
   return (
     <section className="py-20 lg:py-28 bg-[#F5F0E7] border-y border-[#E5DACB]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
-        
+
         {/* Section Intro */}
         <div className="max-w-3xl space-y-4">
           <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#315640]">

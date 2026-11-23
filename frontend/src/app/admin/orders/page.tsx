@@ -108,11 +108,10 @@ export default function AdminOrdersPage() {
             key={tab}
             type="button"
             onClick={() => setFilterStatus(tab)}
-            className={`px-3.5 py-1.5 rounded-full capitalize transition-all cursor-pointer ${
-              filterStatus === tab
-                ? "bg-[#173D2B] text-white"
-                : "bg-white text-[#573B2C] border border-[#E5DACB] hover:border-[#173D2B]"
-            }`}
+            className={`px-3.5 py-1.5 rounded-full capitalize transition-all cursor-pointer ${filterStatus === tab
+              ? "bg-[#173D2B] text-white"
+              : "bg-white text-[#573B2C] border border-[#E5DACB] hover:border-[#173D2B]"
+              }`}
           >
             {tab}
           </button>

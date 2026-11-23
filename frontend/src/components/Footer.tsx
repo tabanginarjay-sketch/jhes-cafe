@@ -9,13 +9,13 @@ export function Footer() {
     <footer className="bg-[#173D2B] text-[#F5F0E7] border-t border-[#0F2A1D]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-20">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-12 lg:gap-8">
-          
+
           {/* Brand Column */}
           <div className="lg:col-span-4 space-y-5">
             <Link href="/" className="group inline-block">
               <JhesCafeLogo variant="footer" size="md" />
             </Link>
-            
+
             <p className="text-sm leading-relaxed text-[#F5F0E7]/80 max-w-sm">
               Your everyday coffee escape. Crafted with single-origin beans, warm walnut spaces, natural light, and moments worth slowing down for.
             </p>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   Calendar,
@@ -13,10 +13,13 @@ import {
   MapPin,
   Armchair,
   Coffee,
+  AlertCircle,
+  HelpCircle,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { createReservation, fetchReservations, type ReservationPayload } from "@/lib/api";
 
-const ZONES = [
+export const ZONES = [
   {
     id: "communal-walnut",
     name: "Communal Walnut Table",
@@ -39,15 +42,15 @@ const ZONES = [
     tag: "Barista Experience",
   },
   {
-    id: "ridge-balcony",
-    name: "Highland Ridge Balcony",
+    id: "outdoor-seating",
+    name: "Outdoor Highland Balcony",
     desc: "Open-air wooden deck with panoramic mountain breeze & soft afternoon sunlight.",
     capacity: "2–6 guests",
     tag: "Mountain View",
   },
 ];
 
-const TIME_SLOTS = [
+export const TIME_SLOTS = [
   "8:30 AM – Morning Roast",
   "10:30 AM – Mid-Morning Sun",
   "1:00 PM – Post-Lunch Slow Drip",
@@ -56,41 +59,86 @@ const TIME_SLOTS = [
   "7:30 PM – Evening Warm Ambient",
 ];
 
-export function TableBookingSection() {
+export function TableBookingSection({
+  preselectedZoneId,
+}: {
+  preselectedZoneId?: string;
+}) {
   const { user } = useAuth();
 
-  const [selectedZone, setSelectedZone] = useState(ZONES[0]);
-  const [date, setDate] = useState("2026-11-24");
-  const [timeSlot, setTimeSlot] = useState(TIME_SLOTS[0]);
+  const [today, setToday] = useState<string>("");
+  const [date, setDate] = useState<string>("");
+  const [selectedZone, setSelectedZone] = useState(
+    ZONES.find((z) => z.id === preselectedZoneId) || ZONES[0]
+  );
+  const [timeSlot, setTimeSlot] = useState(TIME_SLOTS[1]);
   const [guests, setGuests] = useState("2");
   const [specialRequest, setSpecialRequest] = useState("");
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [confirmedReservation, setConfirmedReservation] = useState<any>(null);
   const [showAuthGate, setShowAuthGate] = useState(false);
 
-  const handleBook = (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    const now = new Date();
+    const t = now.toISOString().split("T")[0];
+    const tom = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+    setToday(t);
+    setDate(tom);
+  }, []);
 
-    // AUTH GUARD: MUST BE LOGGED IN TO BOOK
+  useEffect(() => {
+    if (preselectedZoneId) {
+      const match = ZONES.find((z) => z.id === preselectedZoneId);
+      if (match) setSelectedZone(match);
+    }
+  }, [preselectedZoneId]);
+
+  const handleBook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    // 1. Auth Guard Check
     if (!user) {
       setShowAuthGate(true);
       return;
     }
 
-    // Process confirmed reservation
-    setConfirmedReservation({
-      code: `RES-${Math.floor(1000 + Math.random() * 9000)}`,
-      zone: selectedZone.name,
-      date,
-      time: timeSlot,
-      guests,
-      customerName: user.full_name,
-      customerEmail: user.email,
-    });
+    const currentToday = today || new Date().toISOString().split("T")[0];
+    if (date && date < currentToday) {
+      setErrorMessage("Please select a date from today onwards.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload: ReservationPayload = {
+        date,
+        time_slot: timeSlot,
+        zone: selectedZone.name,
+        guests: Number(guests) || 2,
+        customer_name: user.full_name || "Guest Customer",
+        customer_email: user.email || "guest@jhescafe.com",
+        customer_phone: user.phone || undefined,
+        special_requests: specialRequest.trim() || undefined,
+      };
+
+      const result = await createReservation(payload);
+      setConfirmedReservation(result);
+    } catch (err) {
+      setErrorMessage(
+        err instanceof Error
+          ? err.message
+          : "Could not complete your booking. Please try another time slot or contact our concierge."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <section className="py-20 lg:py-28 bg-[#F5F0E7] border-t border-[#E5DACB]">
+    <section id="reserve-table" className="py-20 lg:py-28 bg-[#F5F0E7] border-t border-[#E5DACB]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         
         {/* Section Header */}
@@ -98,11 +146,11 @@ export function TableBookingSection() {
           <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#315640]">
             Table &amp; Lounge Reservation
           </span>
-          <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-[#173D2B]">
+          <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-[#173D2B] tracking-tight">
             Reserve your quiet corner.
           </h2>
           <p className="text-sm sm:text-base text-[#573B2C] leading-relaxed">
-            Whether for deep-focus reading, romantic afternoons, or specialty pour-over tastings, reserve your preferred seating zone in advance.
+            Reserve your preferred seating zone in advance at Jhe&apos;s Cafe&apos;. We hold your table for up to 20 minutes past your confirmed time.
           </p>
         </div>
 
@@ -115,38 +163,59 @@ export function TableBookingSection() {
 
             <div className="space-y-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.25em] text-[#315640]">
-                Reservation Confirmed
+                Table Reserved Successfully
               </span>
               <h3 className="font-serif text-3xl font-bold text-[#173D2B]">
-                {confirmedReservation.code}
+                {confirmedReservation.reservation_code || confirmedReservation.code || "RES-JHE-CONFIRMED"}
               </h3>
               <p className="text-sm text-[#573B2C]">
-                Your table is reserved for <strong>{confirmedReservation.customerName}</strong>. We look forward to welcoming you to BREW &amp; CO..
+                Your table is confirmed for <strong>{confirmedReservation.customer_name || user?.full_name}</strong>. We look forward to welcoming you to Jhe&apos;s Cafe&apos;.
               </p>
             </div>
 
-            <div className="p-6 rounded-2xl bg-[#F5F0E7] border border-[#E5DACB] text-left text-xs space-y-2.5 max-w-md mx-auto">
+            <div className="p-6 rounded-2xl bg-[#F5F0E7] border border-[#E5DACB] text-left text-xs space-y-3 max-w-md mx-auto">
               <div className="flex justify-between">
                 <span className="text-[#573B2C]">Seating Area:</span>
                 <span className="font-bold text-[#173D2B]">{confirmedReservation.zone}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#573B2C]">Date &amp; Time:</span>
-                <span className="font-medium text-[#173D2B]">{confirmedReservation.date} · {confirmedReservation.time}</span>
+                <span className="text-[#573B2C]">Date &amp; Time Slot:</span>
+                <span className="font-medium text-[#173D2B]">
+                  {confirmedReservation.date} · {confirmedReservation.time_slot || confirmedReservation.time}
+                </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-[#573B2C]">Guest Count:</span>
-                <span className="font-bold text-[#173D2B]">{confirmedReservation.guests} {confirmedReservation.guests === "1" ? "Guest" : "Guests"}</span>
+                <span className="text-[#573B2C]">Party Size:</span>
+                <span className="font-bold text-[#173D2B]">
+                  {confirmedReservation.guests} {confirmedReservation.guests === 1 ? "Guest" : "Guests"}
+                </span>
               </div>
+              {confirmedReservation.special_requests && (
+                <div className="flex justify-between border-t border-[#E5DACB] pt-2">
+                  <span className="text-[#573B2C]">Special Request:</span>
+                  <span className="font-medium text-[#173D2B] max-w-[200px] truncate text-right">
+                    {confirmedReservation.special_requests}
+                  </span>
+                </div>
+              )}
             </div>
 
-            <button
-              type="button"
-              onClick={() => setConfirmedReservation(null)}
-              className="px-6 py-2.5 rounded-full border border-[#173D2B] text-[#173D2B] hover:bg-[#F5F0E7] text-xs font-semibold uppercase tracking-wider transition-colors"
-            >
-              Make Another Reservation
-            </button>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmedReservation(null)}
+                className="w-full sm:w-auto px-6 py-3 rounded-full border border-[#173D2B] text-[#173D2B] hover:bg-[#F5F0E7] text-xs font-semibold uppercase tracking-wider transition-colors cursor-pointer"
+              >
+                Make Another Reservation
+              </button>
+
+              <Link
+                href="/account"
+                className="w-full sm:w-auto px-6 py-3 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white text-xs font-semibold uppercase tracking-wider transition-all shadow-md cursor-pointer"
+              >
+                View My Profile
+              </Link>
+            </div>
           </div>
         ) : (
           /* Reservation Form */
@@ -155,7 +224,7 @@ export function TableBookingSection() {
             {/* Zone Selection (7 Cols) */}
             <div className="lg:col-span-7 space-y-4">
               <h3 className="font-serif text-xl font-bold text-[#173D2B]">
-                1. Select Seating Zone
+                1. Choose Seating Area
               </h3>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -197,14 +266,22 @@ export function TableBookingSection() {
               </div>
             </div>
 
-            {/* Date, Time & Auth-Guarded Submit (5 Cols) */}
+            {/* Date, Time, Guests & Submit (5 Cols) */}
             <div className="lg:col-span-5 rounded-3xl border border-[#E5DACB] bg-white p-6 sm:p-8 space-y-6 shadow-sm">
               <h3 className="font-serif text-xl font-bold text-[#173D2B]">
                 2. Schedule &amp; Party Size
               </h3>
 
+              {/* Error Alert */}
+              {errorMessage && (
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{errorMessage}</span>
+                </div>
+              )}
+
               <div className="space-y-4 text-xs">
-                {/* Date */}
+                {/* Date Selection */}
                 <div>
                   <label className="font-semibold text-[#173D2B] block mb-1">
                     Reservation Date
@@ -212,21 +289,22 @@ export function TableBookingSection() {
                   <input
                     type="date"
                     required
+                    min={today || undefined}
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    className="w-full rounded-xl border border-[#E5DACB] p-3 text-xs text-[#173D2B] bg-[#FFFCF7]"
+                    className="w-full rounded-xl border border-[#E5DACB] p-3 text-xs text-[#173D2B] bg-[#FFFCF7] focus:outline-hidden focus:border-[#173D2B]"
                   />
                 </div>
 
-                {/* Time Slot */}
+                {/* Preferred Time Slot */}
                 <div>
                   <label className="font-semibold text-[#173D2B] block mb-1">
-                    Preferred Time Slot
+                    Available Time Slot
                   </label>
                   <select
                     value={timeSlot}
                     onChange={(e) => setTimeSlot(e.target.value)}
-                    className="w-full rounded-xl border border-[#E5DACB] p-3 text-xs text-[#173D2B] bg-[#FFFCF7]"
+                    className="w-full rounded-xl border border-[#E5DACB] p-3 text-xs text-[#173D2B] bg-[#FFFCF7] focus:outline-hidden focus:border-[#173D2B]"
                   >
                     {TIME_SLOTS.map((slot) => (
                       <option key={slot} value={slot}>
@@ -236,7 +314,7 @@ export function TableBookingSection() {
                   </select>
                 </div>
 
-                {/* Guest Count */}
+                {/* Number of Guests */}
                 <div>
                   <label className="font-semibold text-[#173D2B] block mb-1">
                     Number of Guests
@@ -244,7 +322,7 @@ export function TableBookingSection() {
                   <select
                     value={guests}
                     onChange={(e) => setGuests(e.target.value)}
-                    className="w-full rounded-xl border border-[#E5DACB] p-3 text-xs text-[#173D2B] bg-[#FFFCF7]"
+                    className="w-full rounded-xl border border-[#E5DACB] p-3 text-xs text-[#173D2B] bg-[#FFFCF7] focus:outline-hidden focus:border-[#173D2B]"
                   >
                     {[1, 2, 3, 4, 5, 6, 8].map((num) => (
                       <option key={num} value={String(num)}>
@@ -254,7 +332,7 @@ export function TableBookingSection() {
                   </select>
                 </div>
 
-                {/* Special Request */}
+                {/* Special Requests */}
                 <div>
                   <label className="font-semibold text-[#173D2B] block mb-1">
                     Special Requests (Optional)
@@ -263,8 +341,8 @@ export function TableBookingSection() {
                     rows={2}
                     value={specialRequest}
                     onChange={(e) => setSpecialRequest(e.target.value)}
-                    placeholder="E.g. anniversary, power outlet requirement, quiet corner..."
-                    className="w-full rounded-xl border border-[#E5DACB] p-3 text-xs text-[#173D2B] bg-[#FFFCF7]"
+                    placeholder="E.g. anniversary, power outlet requirement, quiet reading corner..."
+                    className="w-full rounded-xl border border-[#E5DACB] p-3 text-xs text-[#173D2B] bg-[#FFFCF7] focus:outline-hidden focus:border-[#173D2B]"
                   />
                 </div>
               </div>
@@ -276,8 +354,8 @@ export function TableBookingSection() {
                     <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
                     <span>Booking as <strong>{user.full_name}</strong></span>
                   </div>
-                  <span className="font-mono text-[10px] text-emerald-800 font-bold">
-                    {user.role.toUpperCase()}
+                  <span className="font-mono text-[10px] text-emerald-800 font-bold uppercase">
+                    {user.role}
                   </span>
                 </div>
               ) : (
@@ -286,7 +364,7 @@ export function TableBookingSection() {
                   <div>
                     <strong className="block font-semibold">Account Required to Book</strong>
                     <span className="text-[11px] leading-relaxed">
-                      Bago makapag-book ng table, kailangan munang mag-sign in o mag-create ng account.
+                      Bago makapag-book ng table, kailangan munang mag-sign in o mag-create ng account sa Jhe&apos;s Cafe&apos;.
                     </span>
                   </div>
                 </div>
@@ -295,10 +373,20 @@ export function TableBookingSection() {
               {/* Submit Button */}
               <button
                 type="submit"
-                className="w-full py-4 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg cursor-pointer"
+                disabled={isSubmitting}
+                className="w-full py-4 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white font-semibold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg cursor-pointer disabled:opacity-60"
               >
-                <span>{user ? "Confirm Table Reservation" : "Sign In / Register to Book"}</span>
-                <ArrowRight className="w-4 h-4 text-[#C9AE8B]" />
+                {isSubmitting ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Reserving Table...</span>
+                  </div>
+                ) : (
+                  <>
+                    <span>{user ? "Confirm Table Reservation" : "Sign In / Register to Book"}</span>
+                    <ArrowRight className="w-4 h-4 text-[#C9AE8B]" />
+                  </>
+                )}
               </button>
 
             </div>
@@ -324,7 +412,7 @@ export function TableBookingSection() {
                 Sign In to Reserve Your Table
               </h3>
               <p className="text-xs text-[#573B2C] leading-relaxed">
-                Table bookings are reserved for registered **BREW &amp; CO.** members. Sign in with your existing account or create a new account in seconds.
+                Table bookings are reserved for registered **Jhe&apos;s Cafe&apos;** members. Sign in with your existing account or create a new account in seconds.
               </p>
             </div>
 

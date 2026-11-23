@@ -8,6 +8,7 @@ from app.modules.orders.router import router as orders_router
 from app.modules.inventory.router import router as inventory_router
 from app.modules.users.router import router as users_router
 from app.modules.payments.router import router as payments_router
+from app.modules.reservations.router import router as reservations_router
 
 api_router = APIRouter()
 
@@ -20,3 +21,4 @@ api_router.include_router(orders_router)
 api_router.include_router(inventory_router)
 api_router.include_router(users_router)
 api_router.include_router(payments_router)
+api_router.include_router(reservations_router)

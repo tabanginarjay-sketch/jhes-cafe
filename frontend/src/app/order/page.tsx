@@ -303,7 +303,7 @@ function OrderCheckoutContent() {
   return (
     <div className="py-12 sm:py-16 bg-[#FFFCF7] min-h-screen">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-        
+
         {/* Logged-In Account Verification Banner */}
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/80 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -318,8 +318,8 @@ function OrderCheckoutContent() {
                   {user.auth_provider === "google"
                     ? "Google Bound"
                     : user.auth_provider === "apple"
-                    ? "Apple ID Bound"
-                    : "Verified Member"}
+                      ? "Apple ID Bound"
+                      : "Verified Member"}
                 </span>
               </div>
               <p className="text-xs text-[#573B2C] font-mono">{user.email}</p>
@@ -352,22 +352,20 @@ function OrderCheckoutContent() {
             <button
               type="button"
               onClick={() => setActiveTab("checkout")}
-              className={`px-5 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === "checkout"
-                  ? "bg-[#173D2B] text-white shadow-sm"
-                  : "text-[#573B2C] hover:text-[#173D2B]"
-              }`}
+              className={`px-5 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer ${activeTab === "checkout"
+                ? "bg-[#173D2B] text-white shadow-sm"
+                : "text-[#573B2C] hover:text-[#173D2B]"
+                }`}
             >
               ☕ Place New Order
             </button>
             <button
               type="button"
               onClick={() => setActiveTab("history")}
-              className={`px-5 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer ${
-                activeTab === "history"
-                  ? "bg-[#173D2B] text-white shadow-sm"
-                  : "text-[#573B2C] hover:text-[#173D2B]"
-              }`}
+              className={`px-5 py-2 rounded-full text-xs font-semibold transition-all cursor-pointer ${activeTab === "history"
+                ? "bg-[#173D2B] text-white shadow-sm"
+                : "text-[#573B2C] hover:text-[#173D2B]"
+                }`}
             >
               📋 My Orders ({userOrders.length})
             </button>
@@ -377,10 +375,10 @@ function OrderCheckoutContent() {
         {/* TAB 1: PLACE NEW ORDER */}
         {activeTab === "checkout" && (
           <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            
+
             {/* Left Column: Form Details (8 Cols) */}
             <div className="lg:col-span-8 space-y-6">
-              
+
               {/* Error Message */}
               {error && (
                 <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 flex items-center gap-3">
@@ -450,11 +448,10 @@ function OrderCheckoutContent() {
                   <button
                     type="button"
                     onClick={() => setDiningOption("Dine-in")}
-                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
-                      diningOption === "Dine-in"
-                        ? "border-[#173D2B] bg-[#173D2B] text-white"
-                        : "border-[#E5DACB] bg-[#FFFCF7] text-[#173D2B] hover:border-[#315640]"
-                    }`}
+                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${diningOption === "Dine-in"
+                      ? "border-[#173D2B] bg-[#173D2B] text-white"
+                      : "border-[#E5DACB] bg-[#FFFCF7] text-[#173D2B] hover:border-[#315640]"
+                      }`}
                   >
                     <p className="font-bold">Dine-in at Highland Lounge</p>
                     <p className="text-[11px] opacity-80 mt-1">Ceramic cup served at cozy walnut lounge</p>
@@ -463,11 +460,10 @@ function OrderCheckoutContent() {
                   <button
                     type="button"
                     onClick={() => setDiningOption("Takeaway")}
-                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${
-                      diningOption === "Takeaway"
-                        ? "border-[#173D2B] bg-[#173D2B] text-white"
-                        : "border-[#E5DACB] bg-[#FFFCF7] text-[#173D2B] hover:border-[#315640]"
-                    }`}
+                    className={`p-4 rounded-2xl border text-left transition-all cursor-pointer ${diningOption === "Takeaway"
+                      ? "border-[#173D2B] bg-[#173D2B] text-white"
+                      : "border-[#E5DACB] bg-[#FFFCF7] text-[#173D2B] hover:border-[#315640]"
+                      }`}
                   >
                     <p className="font-bold">Takeaway / Express Cup</p>
                     <p className="text-[11px] opacity-80 mt-1">Pre-order for fast barista counter pickup</p>
@@ -505,11 +501,10 @@ function OrderCheckoutContent() {
                       key={m.id}
                       type="button"
                       onClick={() => setPaymentMethod(m.id)}
-                      className={`p-3.5 rounded-xl border text-center transition-all cursor-pointer ${
-                        paymentMethod === m.id
-                          ? "border-[#173D2B] bg-[#173D2B] text-white font-bold"
-                          : "border-[#E5DACB] bg-[#FFFCF7] text-[#573B2C] hover:border-[#173D2B]"
-                      }`}
+                      className={`p-3.5 rounded-xl border text-center transition-all cursor-pointer ${paymentMethod === m.id
+                        ? "border-[#173D2B] bg-[#173D2B] text-white font-bold"
+                        : "border-[#E5DACB] bg-[#FFFCF7] text-[#573B2C] hover:border-[#173D2B]"
+                        }`}
                     >
                       {m.label}
                     </button>

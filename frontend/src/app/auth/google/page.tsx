@@ -27,7 +27,7 @@ function GoogleAuthContent() {
     try {
       await new Promise((resolve) => setTimeout(resolve, 600));
       setStatusMessage("Binding Google profile to BREW & CO. account...");
-      
+
       const user = await bindSocialAccount("google", email, name);
       setIsSuccess(true);
       setStatusMessage(`✓ Connected as ${user.full_name}! Redirecting...`);
@@ -45,7 +45,7 @@ function GoogleAuthContent() {
     <div className="min-h-screen bg-[#F0F4F9] flex flex-col items-center justify-center p-4">
       {/* Google Card */}
       <div className="w-full max-w-[440px] bg-white rounded-3xl p-8 sm:p-10 shadow-xl border border-gray-100 space-y-6">
-        
+
         {/* Google Header */}
         <div className="flex flex-col items-center text-center space-y-2">
           <svg className="w-10 h-10" viewBox="0 0 24 24">
