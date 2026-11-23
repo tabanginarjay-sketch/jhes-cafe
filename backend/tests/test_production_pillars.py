@@ -1,5 +1,5 @@
 """
-Comprehensive tests for the 5 Production Pillars of Jhe's Cafe':
+Comprehensive tests for the 5 Production Pillars of BREW & CO.:
 1. Security: Security headers, RBAC & Row-Level Security, Rate Limiting
 2. Shipping: Health probes (liveness, readiness)
 3. Speed: In-memory TTL Caching & Prefix Invalidation

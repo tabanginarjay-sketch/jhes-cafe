@@ -26,7 +26,7 @@ function GoogleAuthContent() {
     setStatusMessage("Authenticating with Google Accounts...");
     try {
       await new Promise((resolve) => setTimeout(resolve, 600));
-      setStatusMessage("Binding Google profile to Jhe's Cafe' account...");
+      setStatusMessage("Binding Google profile to BREW & CO. account...");
       
       const user = await bindSocialAccount("google", email, name);
       setIsSuccess(true);
@@ -70,7 +70,7 @@ function GoogleAuthContent() {
             Sign in with Google
           </h1>
           <p className="text-xs text-gray-500">
-            Choose an account to continue to <span className="font-semibold text-[#173D2B]">Jhe&apos;s Cafe&apos;</span>
+            Choose an account to continue to <span className="font-semibold text-[#173D2B]">BREW &amp; CO.</span>
           </p>
         </div>
 
@@ -111,21 +111,21 @@ function GoogleAuthContent() {
               </span>
             </button>
 
-            {/* Secondary Account: Jhe's Cafe VIP */}
+            {/* Secondary Account: BREW & CO. VIP */}
             <button
               type="button"
-              onClick={() => handleSelectAndBind("jhe.cafe.vip@gmail.com", "Jhe VIP Customer")}
+              onClick={() => handleSelectAndBind("vip@brewandco.ph", "BREW & CO. VIP")}
               className="w-full flex items-center gap-3.5 p-3.5 rounded-2xl border border-gray-200 hover:border-blue-500 hover:bg-blue-50/50 transition-all text-left group cursor-pointer"
             >
               <div className="w-10 h-10 rounded-full bg-emerald-700 text-white flex items-center justify-center font-bold text-sm shrink-0">
-                JC
+                BC
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 group-hover:text-blue-700 truncate">
-                  Jhe VIP Member
+                  BREW &amp; CO. VIP Member
                 </p>
                 <p className="text-xs text-gray-500 truncate">
-                  jhe.cafe.vip@gmail.com
+                  vip@brewandco.ph
                 </p>
               </div>
               <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">

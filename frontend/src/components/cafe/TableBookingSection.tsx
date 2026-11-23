@@ -121,7 +121,7 @@ export function TableBookingSection() {
                 {confirmedReservation.code}
               </h3>
               <p className="text-sm text-[#573B2C]">
-                Your table is reserved for <strong>{confirmedReservation.customerName}</strong>. We look forward to welcoming you to Jhe&apos;s Cafe&apos;.
+                Your table is reserved for <strong>{confirmedReservation.customerName}</strong>. We look forward to welcoming you to BREW &amp; CO..
               </p>
             </div>
 
@@ -324,7 +324,7 @@ export function TableBookingSection() {
                 Sign In to Reserve Your Table
               </h3>
               <p className="text-xs text-[#573B2C] leading-relaxed">
-                Table bookings are reserved for registered **Jhe&apos;s Cafe&apos;** members. Sign in with your existing account or create a new account in seconds.
+                Table bookings are reserved for registered **BREW &amp; CO.** members. Sign in with your existing account or create a new account in seconds.
               </p>
             </div>
 

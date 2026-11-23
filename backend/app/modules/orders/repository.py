@@ -33,7 +33,7 @@ class OrderRepository(BaseAirtableRepository[OrderResponse, OrderCreate, OrderUp
 
     async def create_order_with_items(self, order_data: OrderCreate) -> OrderResponse:
         """Create an Order record and all its child OrderItem records in Airtable."""
-        order_num = order_data.order_number or f"ORD-{int(time.time()) % 100000:05d}"
+        order_num = order_data.order_number or f"BNC-{int(time.time()) % 100000:05d}"
         total_amount = sum(item.subtotal for item in order_data.items)
 
         order_fields = {
@@ -65,6 +65,18 @@ class OrderRepository(BaseAirtableRepository[OrderResponse, OrderCreate, OrderUp
                 item_payload,
             )
             created_items.append(self.item_repo._record_to_model(created_item))
+
+        # Deduct coffee stock in Inventory if configured
+        try:
+            inv_records = await self.client.list_records("Inventory")
+            if inv_records:
+                first_inv = inv_records[0]
+                curr_stock = first_inv.get("fields", {}).get("stock_quantity", 10)
+                qty_deduct = sum(item.quantity for item in order_data.items)
+                new_stock = max(0, curr_stock - qty_deduct)
+                await self.client.update_record("Inventory", first_inv["id"], {"stock_quantity": new_stock})
+        except Exception:
+            pass
 
         response = self._record_to_model(created_order_record)
         response.items = created_items

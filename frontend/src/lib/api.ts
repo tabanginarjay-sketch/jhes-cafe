@@ -178,3 +178,122 @@ export async function bindSocialAccountApi(payload: {
     avatar_url: payload.avatar_url,
   };
 }
+
+
+export async function fetchOrders(): Promise<OrderData[]> {
+  const response = await fetch(`${API_BASE_URL}/orders`, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch orders: HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updateOrderStatus(
+  orderId: string,
+  status: "pending" | "preparing" | "ready" | "completed" | "cancelled"
+) {
+  const response = await fetch(`${API_BASE_URL}/orders/${orderId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ status }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update order status: HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchInventory() {
+  const response = await fetch(`${API_BASE_URL}/inventory`, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch inventory: HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function updateInventoryStock(itemId: string, stockQuantity: number) {
+  const response = await fetch(`${API_BASE_URL}/inventory`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ id: itemId, stock_quantity: stockQuantity }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to update inventory: HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchStaff() {
+  const response = await fetch(`${API_BASE_URL}/staff`, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch staff: HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function fetchPayments() {
+  const response = await fetch(`${API_BASE_URL}/payments`, {
+    headers: { Accept: "application/json" },
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch payments: HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function createProduct(payload: {
+  name: string;
+  category_name?: string;
+  price: number;
+  origin?: string;
+  roast_level?: string;
+  tasting_notes?: string;
+}) {
+  const response = await fetch(`${API_BASE_URL}/catalog/products`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create product: HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function createCategory(payload: {
+  name: string;
+  display_order?: number;
+  description?: string;
+}) {
+  const response = await fetch(`${API_BASE_URL}/catalog/categories`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to create category: HTTP ${response.status}`);
+  }
+  return response.json();
+}

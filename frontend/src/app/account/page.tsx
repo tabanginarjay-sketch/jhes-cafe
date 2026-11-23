@@ -28,7 +28,7 @@ export default function AccountPage() {
       <div className="py-24 flex items-center justify-center bg-[#FFFCF7]">
         <div className="flex flex-col items-center gap-3">
           <div className="w-8 h-8 border-3 border-[#173D2B]/30 border-t-[#173D2B] rounded-full animate-spin" />
-          <span className="text-xs text-[#573B2C] font-mono">Loading Jhe&apos;s Cafe&apos; member profile...</span>
+          <span className="text-xs text-[#573B2C] font-mono">Loading BREW &amp; CO. member profile...</span>
         </div>
       </div>
     );
@@ -342,7 +342,7 @@ export default function AccountPage() {
               <JhesCafeLogo variant="emblem" size="sm" />
               <div className="text-right">
                 <span className="font-serif font-bold text-lg text-[#FFFCF7] block">
-                  Jhe&apos;s Cafe&apos;
+                  BREW &amp; CO.
                 </span>
                 <span className="text-[9px] uppercase tracking-widest text-[#C9AE8B] font-mono">
                   Highland Member Pass

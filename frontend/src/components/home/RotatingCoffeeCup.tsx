@@ -92,7 +92,7 @@ export function RotatingCoffeeCup() {
               opacity="0.95"
             >
               <textPath href="#coffeeLetterRing" startOffset="0%">
-                ★ JHE&apos;S CAFE&apos; ★ ARTISAN LATTE ART ★ HIGHLAND COFFEE ESCAPE ★ SLOW ROASTED ★
+                ★ BREW &amp; CO. ★ ARTISAN SPECIALTY COFFEE ★ MODERN ROASTERY &amp; LOUNGE ★ SLOW ROASTED ★
               </textPath>
             </text>
           </svg>

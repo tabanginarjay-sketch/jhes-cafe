@@ -14,15 +14,16 @@ const HEADERS = {
   Accept: "application/json",
 };
 
-export async function airtableList(tableName: string, filterByFormula?: string) {
+export async function airtableList(tableName: string, filterByFormula?: string, noCache = false) {
   let url = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${tableName}`;
   if (filterByFormula) {
     url += `?filterByFormula=${encodeURIComponent(filterByFormula)}`;
   }
-  const res = await fetch(url, {
+  const fetchOptions: RequestInit = {
     headers: HEADERS,
-    next: { revalidate: 60 },
-  });
+    ...(noCache ? { cache: "no-store" } : { next: { revalidate: 30 } }),
+  };
+  const res = await fetch(url, fetchOptions);
   if (!res.ok) {
     const errorText = await res.text();
     throw new Error(`Airtable error (${res.status}): ${errorText}`);
@@ -33,6 +34,24 @@ export async function airtableList(tableName: string, filterByFormula?: string) 
     ...r.fields,
     created_at: r.createdTime,
   }));
+}
+
+export async function airtableGet(tableName: string, recordId: string) {
+  const url = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${tableName}/${recordId}`;
+  const res = await fetch(url, {
+    headers: HEADERS,
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Airtable fetch record error (${res.status}): ${errorText}`);
+  }
+  const data = await res.json();
+  return {
+    id: data.id,
+    ...data.fields,
+    created_at: data.createdTime,
+  };
 }
 
 export async function airtableCreate(tableName: string, fields: Record<string, unknown>) {
@@ -52,6 +71,38 @@ export async function airtableCreate(tableName: string, fields: Record<string, u
     ...data.fields,
     created_at: data.createdTime,
   };
+}
+
+export async function airtableUpdate(tableName: string, recordId: string, fields: Record<string, unknown>) {
+  const url = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${tableName}/${recordId}`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: HEADERS,
+    body: JSON.stringify({ fields, typecast: true }),
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Airtable update error (${res.status}): ${errorText}`);
+  }
+  const data = await res.json();
+  return {
+    id: data.id,
+    ...data.fields,
+    created_at: data.createdTime,
+  };
+}
+
+export async function airtableDelete(tableName: string, recordId: string) {
+  const url = `${AIRTABLE_API_URL}/${AIRTABLE_BASE_ID}/${tableName}/${recordId}`;
+  const res = await fetch(url, {
+    method: "DELETE",
+    headers: HEADERS,
+  });
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Airtable delete error (${res.status}): ${errorText}`);
+  }
+  return await res.json();
 }
 
 export async function airtableCheckHealth() {

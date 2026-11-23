@@ -73,7 +73,7 @@ export function HealthStatusCard() {
             </p>
           </div>
           <h3 className="font-serif text-2xl font-bold text-[#173D2B] mt-1">
-            Jhe&apos;s Cafe&apos; 5-Pillar Live Diagnostic
+            BREW &amp; CO. 5-Pillar Live Diagnostic
           </h3>
         </div>
 

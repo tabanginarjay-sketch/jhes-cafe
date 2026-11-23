@@ -26,7 +26,7 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 
-logger = logging.getLogger("jhes_cafe.api")
+logger = logging.getLogger("brew_and_co.api")
 
 # Record application startup timestamp for uptime tracking
 START_TIME = time.time()

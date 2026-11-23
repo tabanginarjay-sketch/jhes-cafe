@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     )
 
     # Application metadata
-    APP_NAME: str = "Jhe's Cafe' API"
+    APP_NAME: str = "BREW & CO. API"
     APP_VERSION: str = "1.0.0"
     APP_ENV: str = "production"
     DEBUG: bool = False

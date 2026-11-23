@@ -8,7 +8,7 @@ export default function OurStoryPage() {
       <section className="py-20 lg:py-28 bg-[#F5F0E7] border-b border-[#E5DACB]">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4">
           <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#315640]">
-            The Jhe&apos;s Cafe&apos; Story
+            The BREW &amp; CO. Story
           </span>
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-bold text-[#173D2B] tracking-tight">
             Coffee born from mist, volcanic soil, and human care.

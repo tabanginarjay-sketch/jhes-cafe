@@ -108,7 +108,7 @@ function RegisterForm() {
                 Welcome, {registeredUser.full_name}!
               </h2>
               <p className="text-sm text-[#573B2C] max-w-md mx-auto leading-relaxed">
-                Your member account has been registered with **Jhe&apos;s Cafe&apos;**. You are now a recognized member of our Highland Reserve coffee club.
+                Your member account has been registered with **BREW &amp; CO.**. You are now a recognized member of our Highland Reserve coffee club.
               </p>
             </div>
 
@@ -138,7 +138,7 @@ function RegisterForm() {
                 <JhesCafeLogo variant="emblem" size="md" />
               </div>
               <h1 className="font-serif text-3xl font-bold text-[#173D2B] tracking-tight">
-                Join Jhe&apos;s Cafe&apos;
+                Join BREW &amp; CO.
               </h1>
               <p className="text-xs sm:text-sm text-[#573B2C] max-w-md mx-auto leading-relaxed">
                 Unlock handcrafted drink rewards, personalized bean customizations, and seamless table bookings.

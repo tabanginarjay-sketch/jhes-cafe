@@ -1,5 +1,5 @@
 """
-Deep health check & diagnostic service for Jhe's Cafe' API.
+Deep health check & diagnostic service for BREW & CO. API.
 
 Provides:
 - Liveness probe for container orchestrators (/health/liveness)

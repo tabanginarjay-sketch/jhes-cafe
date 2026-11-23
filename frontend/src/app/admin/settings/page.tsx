@@ -1,4 +1,8 @@
+"use client";
+
 import { HealthStatusCard } from "@/components/HealthStatusCard";
+import { API_BASE_URL } from "@/lib/api";
+import { ShieldCheck, Server, Database, Lock } from "lucide-react";
 
 export default function AdminSettingsPage() {
   return (
@@ -14,7 +18,11 @@ export default function AdminSettingsPage() {
       <HealthStatusCard />
 
       <div className="rounded-3xl border border-[#E5DACB] bg-white p-8 space-y-6 shadow-2xs">
-        <h3 className="font-serif text-xl font-bold text-[#173D2B]">Environment Configuration</h3>
+        <div className="flex items-center gap-2">
+          <Server className="w-5 h-5 text-[#173D2B]" />
+          <h3 className="font-serif text-xl font-bold text-[#173D2B]">Environment Configuration</h3>
+        </div>
+
         <div className="space-y-4 text-xs">
           <div>
             <label className="font-bold uppercase tracking-wider text-[#173D2B] block mb-1">
@@ -30,31 +38,34 @@ export default function AdminSettingsPage() {
 
           <div>
             <label className="font-bold uppercase tracking-wider text-[#173D2B] block mb-1">
-              Airtable Web API Base URL
+              Active API Endpoint Base
             </label>
             <input
               disabled
               type="text"
-              value="https://api.airtable.com/v0"
+              value={API_BASE_URL}
               className="w-full rounded-xl border border-[#E5DACB] bg-[#F5F0E7] p-3 text-xs font-mono text-[#173D2B]"
             />
           </div>
 
           <div>
             <label className="font-bold uppercase tracking-wider text-[#173D2B] block mb-1">
-              Backend Fast API Server
+              Cloud Database Provider
             </label>
             <input
               disabled
               type="text"
-              value="http://127.0.0.1:8000/api/v1"
+              value="Airtable Cloud REST API v0 (Tables: Products, Orders, OrderItems, Inventory, Users, Staff, Payments)"
               className="w-full rounded-xl border border-[#E5DACB] bg-[#F5F0E7] p-3 text-xs font-mono text-[#173D2B]"
             />
           </div>
         </div>
 
         <div className="pt-4 border-t border-[#E5DACB] flex items-center justify-between text-xs text-[#573B2C]">
-          <span>Security: Personal Access Token loaded via server-side .env</span>
+          <span className="flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5 text-emerald-800" />
+            <span>Security: Personal Access Token protected server-side</span>
+          </span>
           <span className="font-bold text-emerald-800">Status: Protected</span>
         </div>
       </div>
