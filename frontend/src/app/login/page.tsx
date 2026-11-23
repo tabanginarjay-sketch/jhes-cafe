@@ -195,7 +195,7 @@ function LoginForm() {
     fbAuthUrl.searchParams.set("client_id", appId);
     fbAuthUrl.searchParams.set("redirect_uri", redirectUri);
     fbAuthUrl.searchParams.set("response_type", "code");
-    fbAuthUrl.searchParams.set("scope", "email,public_profile");
+    fbAuthUrl.searchParams.set("scope", "public_profile");
     fbAuthUrl.searchParams.set("state", redirectTarget);
     window.location.href = fbAuthUrl.toString();
   };
