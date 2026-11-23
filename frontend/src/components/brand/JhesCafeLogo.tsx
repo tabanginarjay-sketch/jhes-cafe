@@ -147,7 +147,7 @@ export function JhesCafeLogo({
               titleSizes[size]
             } ${isDarkBg ? "text-[#FFFCF7]" : "text-[#173D2B]"}`}
           >
-            BREW &amp; CO.
+            Jhe&apos;s Cafe&apos;
           </span>
 
           {/* Subtitle / Tagline */}

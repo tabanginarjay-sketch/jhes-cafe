@@ -45,7 +45,7 @@ export function OurStoryTeaser() {
             </h2>
 
             <p className="text-sm sm:text-base text-[#573B2C] leading-relaxed">
-              BREW &amp; CO. was born from a simple belief: coffee should never be a hurried commodity. It is a slow ritual that begins in the rich volcanic soil of Amadeo Cavite and the cool mist of the Benguet cordilleras.
+              Jhe&apos;s Cafe&apos; was born from a simple belief: coffee should never be a hurried commodity. It is a slow ritual that begins in the rich volcanic soil of Amadeo Cavite and the cool mist of the Benguet cordilleras.
             </p>
 
             <p className="text-sm sm:text-base text-[#573B2C] leading-relaxed">

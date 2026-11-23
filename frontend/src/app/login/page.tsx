@@ -185,7 +185,7 @@ function LoginForm() {
 
           {/* Registration link */}
           <p className="text-center text-xs text-[#573B2C] pt-2 border-t border-[#E5DACB]">
-            New to BREW &amp; CO.?{" "}
+            New to Jhe&apos;s Cafe&apos;?{" "}
             <Link
               href={redirectTarget ? `/register?redirect=${encodeURIComponent(redirectTarget)}` : "/register"}
               className="font-bold text-[#173D2B] hover:underline ml-1"

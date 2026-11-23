@@ -129,7 +129,7 @@ export function Footer() {
 
         {/* Bottom Bar */}
         <div className="mt-16 pt-8 border-t border-[#315640]/50 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#F5F0E7]/60">
-          <p>© 2026 BREW &amp; CO. Specialty Coffee Roasters. All rights reserved.</p>
+          <p>© 2026 Jhe&apos;s Cafe&apos; Specialty Coffee Roasters. All rights reserved.</p>
           <div className="flex items-center gap-6">
             <Link href="/contact" className="hover:text-[#C9AE8B] transition-colors">
               Contact Us

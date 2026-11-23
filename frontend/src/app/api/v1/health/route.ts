@@ -7,7 +7,7 @@ export async function GET() {
   return NextResponse.json(
     {
       status: "ok",
-      service: "BREW & CO. Cloud API",
+      service: "Jhe's Cafe' Cloud API",
       version: "1.0.0",
       environment: process.env.NODE_ENV || "production",
       timestamp: new Date().toISOString(),

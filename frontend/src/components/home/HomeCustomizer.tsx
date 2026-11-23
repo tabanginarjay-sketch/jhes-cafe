@@ -38,9 +38,21 @@ const BASE_OPTIONS = [
   },
 ];
 
+const SIZES = [
+  { name: "Tall 12oz", volume: "355ml", delta: 0, label: "Base" },
+  { name: "Grande 16oz", volume: "473ml", delta: 30, label: "+₱30" },
+  { name: "Venti 20oz", volume: "591ml", delta: 50, label: "+₱50" },
+];
+
+const MILKS = [
+  { name: "Fresh Whole Milk", sub: "Rich Creamy Dairy", delta: 0, label: "Included" },
+  { name: "Barista Oat Milk", sub: "Organic Oat, Naturally Sweet", delta: 35, label: "+₱35" },
+  { name: "Roasted Almond Milk", sub: "Nutty Roasted Profile", delta: 35, label: "+₱35" },
+];
+
 export function HomeCustomizer() {
   const [selectedBase, setSelectedBase] = useState(BASE_OPTIONS[0]);
-  const [size, setSize] = useState<"Tall (12oz)" | "Grande (16oz)" | "Venti (20oz)">("Grande (16oz)");
+  const [size, setSize] = useState<"Tall 12oz" | "Grande 16oz" | "Venti 20oz">("Grande 16oz");
   const [temperature, setTemperature] = useState<"Hot" | "Iced">("Hot");
   const [milk, setMilk] = useState<"Fresh Whole Milk" | "Barista Oat Milk" | "Roasted Almond Milk">("Fresh Whole Milk");
   const [sweetness, setSweetness] = useState<number>(50);
@@ -49,8 +61,8 @@ export function HomeCustomizer() {
   const { addItem } = useCart();
 
   // Price calculations
-  const sizeFee = size === "Venti (20oz)" ? 50 : size === "Grande (16oz)" ? 30 : 0;
-  const milkFee = milk === "Fresh Whole Milk" ? 0 : 35;
+  const sizeFee = SIZES.find((s) => s.name === size)?.delta || 0;
+  const milkFee = MILKS.find((m) => m.name === milk)?.delta || 0;
   const currentPrice = selectedBase.basePrice + sizeFee + milkFee;
 
   const activeImage = temperature === "Iced" ? selectedBase.icedImage : selectedBase.hotImage;
@@ -62,11 +74,11 @@ export function HomeCustomizer() {
       price: currentPrice,
       size,
       temperature,
-      milk,
+      milk: `${milk} (${sweetness}% sweetness)`,
       imageUrl: activeImage,
     });
     setIsAdded(true);
-    setTimeout(() => setIsAdded(false), 1500);
+    setTimeout(() => setIsAdded(false), 1600);
   };
 
   return (
@@ -91,10 +103,10 @@ export function HomeCustomizer() {
 
         {/* Customizer Workbench Card */}
         <ScrollReveal direction="up" delay={120}>
-          <div className="rounded-3xl border border-[#E5DACB] bg-[#FFFCF7] p-6 sm:p-10 shadow-sm grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
+          <div className="rounded-3xl border border-[#E5DACB] bg-[#FFFCF7] p-6 sm:p-10 shadow-sm grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             
             {/* Left: Configuration Steps (7 cols) */}
-            <div className="lg:col-span-7 space-y-6 flex flex-col justify-between">
+            <div className="lg:col-span-7 space-y-6">
               
               {/* Step 1: Base Roast Selection with Photo Thumbnails */}
               <div className="space-y-2.5">
@@ -117,7 +129,7 @@ export function HomeCustomizer() {
                             : "border-[#E5DACB] bg-white hover:border-[#315640] hover:shadow-xs"
                         }`}
                       >
-                        {/* Appetizing Coffee Thumbnail */}
+                        {/* Coffee Thumbnail */}
                         <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-[#E5DACB] bg-[#173D2B]">
                           <img
                             src={item.thumb}
@@ -140,92 +152,141 @@ export function HomeCustomizer() {
                 </div>
               </div>
 
-              {/* Step 2: Size & Temperature */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#173D2B]">
-                    2. Cup Size
-                  </label>
-                  <select
-                    value={size}
-                    onChange={(e) => setSize(e.target.value as any)}
-                    className="w-full rounded-xl border border-[#E5DACB] bg-white px-3.5 py-2.5 text-xs text-[#173D2B] font-medium focus:outline-hidden focus:border-[#173D2B] transition-colors"
-                  >
-                    <option value="Tall (12oz)">Tall (12oz) — Base</option>
-                    <option value="Grande (16oz)">Grande (16oz) — +₱30</option>
-                    <option value="Venti (20oz)">Venti (20oz) — +₱50</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#173D2B]">
-                    3. Temperature
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(["Hot", "Iced"] as const).map((t) => (
+              {/* Step 2: Cup Size Cards */}
+              <div className="space-y-2.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#173D2B] flex items-center justify-between">
+                  <span>2. Cup Size</span>
+                  <span className="text-[10px] text-[#573B2C] font-mono">{size}</span>
+                </label>
+                <div className="grid grid-cols-3 gap-3">
+                  {SIZES.map((s) => {
+                    const active = size === s.name;
+                    return (
                       <button
-                        key={t}
+                        key={s.name}
                         type="button"
-                        onClick={() => setTemperature(t)}
-                        className={`py-2 rounded-xl border text-xs font-semibold transition-all duration-200 cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 ${
-                          temperature === t
-                            ? "bg-[#173D2B] text-[#FFFCF7] border-[#173D2B] shadow-xs"
-                            : "border-[#E5DACB] bg-white text-[#573B2C] hover:bg-[#F5F0E7]"
+                        onClick={() => setSize(s.name as any)}
+                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          active
+                            ? "bg-[#173D2B] text-white border-[#173D2B] shadow-md ring-2 ring-[#C9AE8B]"
+                            : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#315640]"
                         }`}
                       >
-                        {t === "Hot" ? <Flame className="w-3.5 h-3.5 text-amber-500" /> : <Snowflake className="w-3.5 h-3.5 text-cyan-600" />}
-                        <span>{t}</span>
+                        <span className={`text-[10px] font-mono uppercase ${active ? "text-[#C9AE8B]" : "text-[#573B2C]/70"}`}>
+                          {s.volume}
+                        </span>
+                        <div className="mt-1">
+                          <p className="font-serif text-xs sm:text-sm font-bold">{s.name.split(" ")[0]}</p>
+                          <p className={`text-[10px] ${active ? "text-white/80" : "text-[#173D2B] font-semibold"}`}>{s.label}</p>
+                        </div>
                       </button>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Step 3: Milk & Sweetness */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#173D2B]">
-                    4. Dairy &amp; Plant Milk
-                  </label>
-                  <select
-                    value={milk}
-                    onChange={(e) => setMilk(e.target.value as any)}
-                    className="w-full rounded-xl border border-[#E5DACB] bg-white px-3.5 py-2.5 text-xs text-[#173D2B] font-medium focus:outline-hidden focus:border-[#173D2B] transition-colors"
-                  >
-                    <option value="Fresh Whole Milk">Fresh Whole Dairy Milk</option>
-                    <option value="Barista Oat Milk">Barista Oat Milk (+₱35)</option>
-                    <option value="Roasted Almond Milk">Roasted Almond Milk (+₱35)</option>
-                  </select>
+              {/* Step 3: Temperature */}
+              <div className="space-y-2.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#173D2B]">
+                  3. Serving Temperature
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {(["Hot", "Iced"] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setTemperature(t)}
+                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                        temperature === t
+                          ? "bg-[#173D2B] text-white border-[#173D2B] shadow-md ring-2 ring-[#C9AE8B]"
+                          : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#315640]"
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${temperature === t ? "bg-white/20" : "bg-[#F5F0E7]"}`}>
+                        {t === "Hot" ? <Flame className="w-4 h-4 text-amber-500" /> : <Snowflake className="w-4 h-4 text-cyan-600" />}
+                      </div>
+                      <div>
+                        <p className="font-serif text-xs sm:text-sm font-bold">{t === "Hot" ? "Hot Steamed 65°C" : "Highland Iced"}</p>
+                        <p className={`text-[10px] ${temperature === t ? "text-white/70" : "text-[#573B2C]/70"}`}>
+                          {t === "Hot" ? "Velvety microfoam" : "Chilled over ice"}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center text-xs">
-                    <label className="font-bold uppercase tracking-wider text-[#173D2B]">
-                      5. Sweetness Level
-                    </label>
-                    <span className="font-mono font-bold text-[#315640]">{sweetness}% sweetness</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="25"
-                    value={sweetness}
-                    onChange={(e) => setSweetness(Number(e.target.value))}
-                    className="w-full accent-[#173D2B] mt-2 cursor-pointer"
-                  />
-                  <div className="flex justify-between text-[10px] text-[#573B2C]/70 font-mono">
-                    <span>0% (Unsweetened)</span>
-                    <span>50%</span>
-                    <span>100%</span>
-                  </div>
+              {/* Step 4: Milk Choice */}
+              <div className="space-y-2.5">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#173D2B]">
+                  4. Dairy &amp; Plant Milk
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {MILKS.map((m) => {
+                    const active = milk === m.name;
+                    return (
+                      <button
+                        key={m.name}
+                        type="button"
+                        onClick={() => setMilk(m.name as any)}
+                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                          active
+                            ? "bg-[#173D2B] text-white border-[#173D2B] shadow-md ring-2 ring-[#C9AE8B]"
+                            : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#315640]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="font-serif text-xs font-bold">{m.name.replace(" Milk", "")}</p>
+                          <span className={`text-[10px] font-mono ${active ? "text-[#C9AE8B]" : "text-[#315640] font-semibold"}`}>{m.label}</span>
+                        </div>
+                        <p className={`text-[10px] mt-1 ${active ? "text-white/70" : "text-[#573B2C]/70"}`}>{m.sub}</p>
+                      </button>
+                    );
+                  })}
                 </div>
+              </div>
+
+              {/* Step 5: Sweetness Slider */}
+              <div className="space-y-2.5 rounded-2xl border border-[#E5DACB] bg-[#F5F0E7]/60 p-4">
+                <div className="flex justify-between items-center text-xs">
+                  <label className="font-bold uppercase tracking-wider text-[#173D2B]">
+                    5. Sweetness Level
+                  </label>
+                  <span className="font-mono font-bold text-[#173D2B] bg-white px-2 py-0.5 rounded-full border border-[#E5DACB] text-[11px]">
+                    {sweetness}% sweetness
+                  </span>
+                </div>
+                <div className="grid grid-cols-5 gap-1.5 pt-1">
+                  {[0, 25, 50, 75, 100].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setSweetness(val)}
+                      className={`py-1.5 text-center rounded-lg border text-[10px] font-mono font-semibold transition-all cursor-pointer ${
+                        sweetness === val
+                          ? "bg-[#173D2B] text-white border-[#173D2B]"
+                          : "bg-white text-[#573B2C] border-[#E5DACB] hover:border-[#315640]"
+                      }`}
+                    >
+                      {val}%
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  step="25"
+                  value={sweetness}
+                  onChange={(e) => setSweetness(Number(e.target.value))}
+                  className="w-full accent-[#173D2B] mt-2 cursor-pointer h-1.5 bg-[#E5DACB] rounded-lg"
+                />
               </div>
 
             </div>
 
             {/* Right: Live Drink Ticket & Visual Coffee Preview (5 cols) */}
-            <div className="lg:col-span-5 rounded-3xl border border-[#E5DACB] bg-[#F5F0E7] p-5 sm:p-6 space-y-4 shadow-md relative overflow-hidden flex flex-col justify-between">
+            <div className="lg:col-span-5 rounded-3xl border border-[#E5DACB] bg-[#F5F0E7] p-5 sm:p-6 space-y-4 shadow-md sticky top-28 self-start">
               
               {/* Header Strip */}
               <div className="flex items-center justify-between border-b border-[#E5DACB] pb-2.5">
@@ -233,18 +294,18 @@ export function HomeCustomizer() {
                   <Coffee className="w-3.5 h-3.5 text-[#173D2B]" />
                   <span>Live Cup Ticket</span>
                 </div>
-                <span className="text-[10px] text-emerald-800 font-semibold bg-emerald-950/10 px-2 py-0.5 rounded-full">
+                <span className="text-[10px] text-emerald-800 font-semibold bg-emerald-950/10 px-2 py-0.5 rounded-full border border-emerald-800/20">
                   Custom Formulation
                 </span>
               </div>
 
               {/* Dynamic Coffee Picture Stage */}
-              <div className="relative w-full h-48 sm:h-56 rounded-2xl overflow-hidden border border-[#E5DACB] bg-[#173D2B] shadow-inner group">
+              <div className="relative w-full h-56 rounded-2xl overflow-hidden border border-[#E5DACB] bg-[#173D2B] shadow-inner group">
                 <img
                   key={`${selectedBase.name}-${temperature}`}
                   src={activeImage}
                   alt={selectedBase.name}
-                  className="w-full h-full object-cover object-center filter brightness-[0.92] contrast-[1.04] transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-108 animate-scale-in"
+                  className="w-full h-full object-cover object-center filter brightness-[0.94] contrast-[1.04] transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-108 animate-scale-in"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#173D2B]/90 via-transparent to-transparent pointer-events-none" />
 
@@ -262,7 +323,7 @@ export function HomeCustomizer() {
                       </>
                     ) : (
                       <>
-                        <Snowflake className="w-3 h-3 text-cyan-300 animate-spin-slow" />
+                        <Snowflake className="w-3 h-3 text-cyan-300" />
                         <span>Highland Iced</span>
                       </>
                     )}

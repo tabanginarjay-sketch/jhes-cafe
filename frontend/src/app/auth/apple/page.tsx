@@ -26,7 +26,7 @@ function AppleAuthContent() {
     setStatusMessage("Authenticating with Face ID / Apple Account...");
     try {
       await new Promise((resolve) => setTimeout(resolve, 600));
-      setStatusMessage("Binding Apple ID to BREW & CO. account...");
+      setStatusMessage("Binding Apple ID to Jhe's Cafe' account...");
 
       const user = await bindSocialAccount("apple", emailToUse, "Jherald Ramos");
       setIsSuccess(true);
@@ -57,7 +57,7 @@ function AppleAuthContent() {
             Sign in with Apple
           </h1>
           <p className="text-xs text-gray-400">
-            Use your Apple ID to sign in to <span className="font-semibold text-white">BREW &amp; CO.</span>
+            Use your Apple ID to sign in to <span className="font-semibold text-white">Jhe&apos;s Cafe&apos;</span>
           </p>
         </div>
 

@@ -216,7 +216,7 @@ function OrderCheckoutContent() {
                 </h1>
 
                 <p className="text-sm text-[#573B2C] leading-relaxed">
-                  Ang order page ay para lamang sa mga <strong>naka-log in na may account</strong> sa BREW &amp; CO. Ito ay upang mai-bind agad ang iyong order sa barista espresso bar, ma-credit ang iyong <strong>loyalty bean points</strong>, at ma-track ang preparasyon nang live.
+                  Ang order page ay para lamang sa mga <strong>naka-log in na may account</strong> sa Jhe&apos;s Cafe&apos;. Ito ay upang mai-bind agad ang iyong order sa barista espresso bar, ma-credit ang iyong <strong>loyalty bean points</strong>, at ma-track ang preparasyon nang live.
                 </p>
 
                 {/* Direct Google & Apple Redirect Sign In */}

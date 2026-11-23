@@ -102,7 +102,7 @@ export default function AdminLayout({
                 Security Guard
               </span>
               <h1 className="font-serif text-2xl font-bold text-[#173D2B]">
-                BREW &amp; CO. Manager Console
+                Jhe&apos;s Cafe&apos; Manager Console
               </h1>
             </div>
             <p className="text-xs text-[#573B2C] leading-relaxed">
@@ -171,7 +171,7 @@ export default function AdminLayout({
             <Coffee className="w-4 h-4" />
           </div>
           <div>
-            <span className="font-serif font-bold text-lg text-[#FFFCF7]">BREW &amp; CO.</span>
+            <span className="font-serif font-bold text-lg text-[#FFFCF7]">Jhe&apos;s Cafe&apos;</span>
             <span className="ml-2 text-[10px] uppercase font-mono tracking-widest text-[#C9AE8B] bg-[#0F2A1D] px-2 py-0.5 rounded">
               Manager Console
             </span>

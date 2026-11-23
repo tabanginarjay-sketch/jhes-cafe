@@ -24,9 +24,9 @@ const lora = Lora({
 });
 
 export const metadata: Metadata = {
-  title: "BREW & CO. — Your everyday coffee escape",
+  title: "Jhe's Cafe' — Your everyday coffee escape",
   description:
-    "Great coffee. Cozy spaces. Moments worth slowing down for. BREW & CO. modern specialty coffee lounge with warm walnut wood interiors, natural light, and artisan brews.",
+    "Great coffee. Cozy spaces. Moments worth slowing down for. Jhe's Cafe' modern specialty coffee lounge with warm walnut wood interiors, natural light, and artisan brews.",
 };
 
 export default function RootLayout({

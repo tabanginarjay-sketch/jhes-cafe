@@ -70,7 +70,7 @@ export function OurSpaceGallery() {
             A sanctuary crafted in walnut, daylight, and quiet moments.
           </h2>
           <p className="text-sm sm:text-base text-[#573B2C] leading-relaxed">
-            Every corner of BREW &amp; CO. is thoughtfully curated—from the warm wood counters to the soft pendant light overhead—designed as your third place between home and work.
+            Every corner of Jhe&apos;s Cafe&apos; is thoughtfully curated—from the warm wood counters to the soft pendant light overhead—designed as your third place between home and work.
           </p>
         </div>
 

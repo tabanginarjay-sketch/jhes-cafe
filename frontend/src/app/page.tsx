@@ -40,7 +40,7 @@ export default function Home() {
             <div className="flex items-center gap-2.5">
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-700 animate-pulse" />
               <span className="text-xs font-semibold uppercase tracking-wider text-[#173D2B]">
-                BREW &amp; CO. Architecture &amp; Database Status
+                Jhe&apos;s Cafe&apos; Architecture &amp; Database Status
               </span>
             </div>
 
