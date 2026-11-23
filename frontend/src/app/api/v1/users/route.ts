@@ -18,10 +18,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const existing = await airtableList("Users", `{email} = '${body.email}'`).catch(() => []);
     if (existing.length > 0) {
-      return NextResponse.json(
-        { detail: "User with this email already exists." },
-        { status: 400 }
-      );
+      return NextResponse.json(existing[0], { status: 200 });
     }
     const created = await airtableCreate("Users", {
       full_name: body.full_name,

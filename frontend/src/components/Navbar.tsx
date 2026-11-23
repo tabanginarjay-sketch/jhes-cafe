@@ -14,13 +14,24 @@ export function Navbar() {
   const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const navLinks = [
+  const baseLinks = [
     { label: "Home", href: "/" },
     { label: "Menu", href: "/menu" },
     { label: "Our Space", href: "/our-cafe" },
     { label: "Our Story", href: "/our-story" },
     { label: "Find Us", href: "/contact" },
   ];
+
+  const navLinks = user
+    ? [
+        { label: "Home", href: "/" },
+        { label: "Menu", href: "/menu" },
+        { label: "My Orders", href: "/order" },
+        { label: "Our Space", href: "/our-cafe" },
+        { label: "Our Story", href: "/our-story" },
+        { label: "Find Us", href: "/contact" },
+      ]
+    : baseLinks;
 
   return (
     <header className="sticky top-0 z-40 bg-[#FFFCF7]/90 backdrop-blur-md border-b border-[#E5DACB] transition-all">

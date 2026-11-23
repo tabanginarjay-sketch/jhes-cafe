@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { UserData, registerCustomer, fetchUserByEmail, fetchUsers } from "@/lib/api";
+import { UserData, registerCustomer, fetchUserByEmail, bindSocialAccountApi } from "@/lib/api";
 
 interface AuthContextType {
   user: UserData | null;
@@ -9,6 +9,12 @@ interface AuthContextType {
   isAuthenticated: boolean;
   register: (payload: { full_name: string; email: string; phone?: string }) => Promise<UserData>;
   login: (email: string) => Promise<UserData>;
+  bindSocialAccount: (
+    provider: "google" | "apple",
+    email: string,
+    name: string,
+    avatarUrl?: string
+  ) => Promise<UserData>;
   logout: () => void;
   updateUserLocally: (updated: Partial<UserData>) => void;
 }
@@ -65,6 +71,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const bindSocialAccount = async (
+    provider: "google" | "apple",
+    email: string,
+    name: string,
+    avatarUrl?: string
+  ): Promise<UserData> => {
+    setIsLoading(true);
+    try {
+      const bound = await bindSocialAccountApi({
+        provider,
+        email,
+        full_name: name,
+        avatar_url: avatarUrl,
+      });
+      setUser(bound);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(bound));
+      return bound;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = () => {
     setUser(null);
     localStorage.removeItem(STORAGE_KEY);
@@ -85,6 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated: !!user,
         register,
         login,
+        bindSocialAccount,
         logout,
         updateUserLocally,
       }}

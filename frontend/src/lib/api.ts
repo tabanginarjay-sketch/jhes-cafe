@@ -46,6 +46,8 @@ export interface UserData {
   phone?: string | null;
   role: string;
   loyalty_points: number;
+  auth_provider?: "google" | "apple" | "email" | string;
+  avatar_url?: string;
   created_at?: string;
 }
 
@@ -133,4 +135,46 @@ export async function fetchUserByEmail(email: string): Promise<UserData | null> 
     (u) => u.email.toLowerCase() === email.trim().toLowerCase()
   );
   return matched ?? null;
+}
+
+export async function bindSocialAccountApi(payload: {
+  provider: "google" | "apple";
+  email: string;
+  full_name: string;
+  phone?: string;
+  avatar_url?: string;
+}): Promise<UserData> {
+  const response = await fetch(`${API_BASE_URL}/users`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      full_name: payload.full_name,
+      email: payload.email,
+      phone: payload.phone || "+639178889900",
+      social_provider: payload.provider,
+    }),
+  });
+
+  if (!response.ok) {
+    const found = await fetchUserByEmail(payload.email);
+    if (found) {
+      return {
+        ...found,
+        auth_provider: payload.provider,
+        avatar_url: payload.avatar_url,
+      };
+    }
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.detail || "Failed to link social account.");
+  }
+
+  const user = await response.json();
+  return {
+    ...user,
+    auth_provider: payload.provider,
+    avatar_url: payload.avatar_url,
+  };
 }
