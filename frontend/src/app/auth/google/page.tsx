@@ -4,7 +4,7 @@ import { Suspense, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
-import { CheckCircle2, ShieldCheck, User } from "lucide-react";
+import { ChevronDown, AlertCircle } from "lucide-react";
 
 function GoogleAuthContent() {
   const router = useRouter();
@@ -12,19 +12,16 @@ function GoogleAuthContent() {
   const redirectTarget = searchParams.get("redirect") || "/order";
   const { bindSocialAccount } = useAuth();
 
-  const [deviceSavedEmail, setDeviceSavedEmail] = useState<string | null>(null);
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Check if this specific device already has a saved email in localStorage
+  // Auto-fill from this device's previous session if exists
   useEffect(() => {
     try {
       const saved = localStorage.getItem("brew_and_co_last_device_email");
       if (saved && saved.includes("@")) {
-        setDeviceSavedEmail(saved);
         setEmail(saved);
       }
     } catch {
@@ -32,208 +29,219 @@ function GoogleAuthContent() {
     }
   }, []);
 
-  const handleAuth = async (targetEmail: string, targetName?: string) => {
-    const cleanEmail = targetEmail.trim().toLowerCase();
+  const handleNext = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setErrorMessage(null);
+
+    const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes("@")) {
-      setStatusMessage("Please enter a valid Google Account email.");
+      setErrorMessage("Enter a valid email address or phone number.");
       return;
     }
 
-    const resolvedName =
-      targetName?.trim() ||
-      cleanEmail
+    setIsProcessing(true);
+    try {
+      const derivedName = cleanEmail
         .split("@")[0]
         .replace(/[._-]/g, " ")
         .split(" ")
         .filter(Boolean)
         .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(" ") ||
-      "Google User";
+        .join(" ") || "Google User";
 
-    setIsProcessing(true);
-    setStatusMessage("Authenticating with Google Account...");
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      setStatusMessage("Signing in to Jhe's Cafe'...");
+      await bindSocialAccount("google", cleanEmail, derivedName);
 
-      const user = await bindSocialAccount("google", cleanEmail, resolvedName);
-      setIsSuccess(true);
-      setStatusMessage(`✓ Signed in as ${user.full_name}! Redirecting...`);
-
+      // Smooth Google-like transition to app
       setTimeout(() => {
         router.push(redirectTarget);
-      }, 600);
+      }, 500);
     } catch (err) {
       setIsProcessing(false);
-      setStatusMessage(err instanceof Error ? err.message : "Error connecting with Google");
+      setErrorMessage(
+        err instanceof Error ? err.message : "Couldn't sign you in. Please try again."
+      );
     }
   };
 
-  return (
-    <div className="min-h-screen bg-[#F0F4F9] flex flex-col items-center justify-center p-4">
-      {/* Google Card */}
-      <div className="w-full max-w-[440px] bg-white rounded-3xl p-8 sm:p-10 shadow-xl border border-gray-100 space-y-6">
+  const hasValue = email.length > 0;
 
-        {/* Google Header */}
-        <div className="flex flex-col items-center text-center space-y-2">
-          <svg className="w-10 h-10" viewBox="0 0 24 24">
+  return (
+    <div className="min-h-screen bg-[#F0F4F9] flex flex-col items-center justify-center p-4 selection:bg-[#c2e7ff] selection:text-[#001d35]">
+      {/* Main Google Box */}
+      <div className="w-full max-w-[450px] bg-white rounded-[8px] sm:rounded-[28px] border border-[#dadce0] p-9 sm:p-11 shadow-sm relative overflow-hidden transition-all">
+        {/* Indeterminate Google Progress Bar when loading */}
+        {isProcessing && (
+          <div className="absolute top-0 left-0 right-0 h-1 bg-[#e8f0fe] overflow-hidden">
+            <div className="h-full bg-[#1a73e8] w-1/3 animate-[indeterminate_1.5s_infinite_linear]" />
+          </div>
+        )}
+
+        {/* Google Multicolor Wordmark */}
+        <div className="flex justify-center mb-4">
+          <svg className="w-20 h-7" viewBox="0 0 74 24" aria-label="Google">
             <path
               fill="#4285F4"
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+              d="M9.24 8.19v2.46h5.88c-.18 1.34-.64 2.33-1.34 3.02-.86.86-2.2 1.8-4.54 1.8-3.63 0-6.47-2.93-6.47-6.57s2.84-6.57 6.47-6.57c1.96 0 3.38.77 4.43 1.76L15.4 2.37C13.93.96 11.87 0 9.24 0 4.28 0 .22 4.04.22 9s4.06 9 9.02 9c2.68 0 4.7-.88 6.28-2.52 1.62-1.62 2.13-3.91 2.13-5.75 0-.57-.05-1.1-.14-1.54H9.24z"
             />
             <path
               fill="#EA4335"
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+              d="M25.7 6.12c-3.14 0-5.7 2.44-5.7 5.76 0 3.29 2.56 5.76 5.7 5.76s5.7-2.47 5.7-5.76c0-3.32-2.56-5.76-5.7-5.76zm0 9.24c-1.72 0-3.2-1.42-3.2-3.48 0-2.08 1.48-3.48 3.2-3.48s3.2 1.4 3.2 3.48c0 2.06-1.48 3.48-3.2 3.48z"
+            />
+            <path
+              fill="#FBBC05"
+              d="M38.5 6.12c-3.14 0-5.7 2.44-5.7 5.76 0 3.29 2.56 5.76 5.7 5.76s5.7-2.47 5.7-5.76c0-3.32-2.56-5.76-5.7-5.76zm0 9.24c-1.72 0-3.2-1.42-3.2-3.48 0-2.08 1.48-3.48 3.2-3.48s3.2 1.4 3.2 3.48c0 2.06-1.48 3.48-3.2 3.48z"
+            />
+            <path
+              fill="#4285F4"
+              d="M50.8 6.12c-3.08 0-5.46 2.47-5.46 5.76 0 3.26 2.38 5.76 5.46 5.76 1.76 0 2.76-.78 3.42-1.55v1.22c0 2.2-1.18 3.38-3.08 3.38-1.54 0-2.5-1.1-2.9-2.04l-2.18.9c.64 1.54 2.32 3.42 5.08 3.42 2.96 0 5.46-1.74 5.46-6v-11.7h-2.36v1.18c-.66-.75-1.66-1.53-3.44-1.53zm.28 9.24c-1.72 0-3.08-1.44-3.08-3.48 0-2.06 1.36-3.48 3.08-3.48 1.68 0 3.02 1.42 3.02 3.48 0 2.04-1.34 3.48-3.02 3.48z"
+            />
+            <path fill="#34A853" d="M58.3 0h2.46v17.4h-2.46z" />
+            <path
+              fill="#EA4335"
+              d="M68.5 6.12c-2.76 0-4.66 1.94-4.66 5.76 0 3.46 2.26 5.76 5.34 5.76 2.5 0 3.96-1.36 4.7-2.46l-1.92-1.28c-.52.76-1.36 1.46-2.78 1.46-1.5 0-2.46-.86-2.88-2.12l7.74-3.2-.28-.7c-.52-1.4-2.12-3.22-5.26-3.22zm-.12 2.28c1.08 0 2 .54 2.32 1.32l-5.44 2.26c0-1.84 1.42-3.58 3.12-3.58z"
             />
           </svg>
-          <h1 className="text-xl font-medium text-gray-800">
-            Sign in with Google
+        </div>
+
+        {/* Title & Subtitle */}
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-normal text-[#202124] tracking-tight">
+            Sign in
           </h1>
-          <p className="text-xs text-gray-500">
-            to continue to <span className="font-semibold text-[#173D2B]">Jhe&apos;s Cafe&apos;</span>
+          <p className="text-base text-[#202124] mt-2">
+            Use your Google Account
           </p>
         </div>
 
-        {/* Processing Indicator */}
-        {isProcessing && (
-          <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200 text-center space-y-2 animate-in fade-in">
-            {isSuccess ? (
-              <CheckCircle2 className="w-7 h-7 text-emerald-600 mx-auto" />
-            ) : (
-              <div className="w-6 h-6 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mx-auto" />
-            )}
-            <p className="text-xs font-medium text-blue-900">{statusMessage}</p>
+        {/* Error notification if any */}
+        {errorMessage && (
+          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>{errorMessage}</span>
           </div>
         )}
 
-        {/* Form with Native Device Autofill */}
-        {!isProcessing && (
-          <div className="space-y-4">
-            {/* Quick 1-tap if user's own device previously stored an account */}
-            {deviceSavedEmail && (
-              <div className="p-3.5 rounded-2xl border border-blue-200 bg-blue-50/60 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-semibold text-blue-700 tracking-wider">
-                    Saved on this device
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDeviceSavedEmail(null);
-                      setEmail("");
-                    }}
-                    className="text-[10px] text-blue-600 hover:underline"
-                  >
-                    Use another
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleAuth(deviceSavedEmail)}
-                  className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-white border border-blue-300 hover:border-blue-500 hover:shadow-xs transition-all text-left cursor-pointer"
-                >
-                  <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                    {deviceSavedEmail.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-gray-900 truncate">
-                      Continue as {deviceSavedEmail}
-                    </p>
-                    <p className="text-[11px] text-gray-500">Tap to sign in instantly</p>
-                  </div>
-                </button>
-              </div>
-            )}
-
-            {/* Standard Google Email Form with Native Autofill */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleAuth(email, name);
-              }}
-              className="space-y-3.5"
+        {/* Form with Material Outline */}
+        <form onSubmit={handleNext} className="space-y-2">
+          {/* Outlined Input Box with Notch */}
+          <div className="relative mt-2">
+            <div
+              className={`relative rounded-[4px] bg-white transition-colors ${
+                errorMessage
+                  ? "border-2 border-[#d93025]"
+                  : isFocused
+                  ? "border-2 border-[#1a73e8]"
+                  : "border border-[#747775] hover:border-[#1f1f1f]"
+              }`}
             >
-              <div>
-                <label
-                  htmlFor="google-email"
-                  className="block text-xs font-semibold text-gray-700 mb-1"
-                >
-                  Email or phone <span className="text-blue-600">*</span>
-                </label>
-                <input
-                  id="google-email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  autoFocus
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@gmail.com"
-                  className="w-full p-3 rounded-xl border border-gray-300 text-xs text-gray-900 placeholder:text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-2xs"
-                />
-                <p className="text-[10px] text-gray-400 mt-1">
-                  Device auto-fill enabled. Tap above to select your device&apos;s Google Account.
-                </p>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="google-name"
-                  className="block text-xs font-semibold text-gray-700 mb-1"
-                >
-                  Name <span className="text-gray-400 font-normal">(Optional)</span>
-                </label>
-                <input
-                  id="google-name"
-                  name="name"
-                  type="text"
-                  autoComplete="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Your Name"
-                  className="w-full p-3 rounded-xl border border-gray-300 text-xs text-gray-900 placeholder:text-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
-                />
-              </div>
-
-              {statusMessage && !isProcessing && (
-                <p className="text-xs text-amber-700 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
-                  {statusMessage}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-98 text-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
+              {/* Floating Label */}
+              <label
+                htmlFor="identifierId"
+                className={`absolute left-3 -top-2.5 px-1 bg-white text-xs transition-all pointer-events-none ${
+                  errorMessage
+                    ? "text-[#d93025] font-medium"
+                    : isFocused
+                    ? "text-[#1a73e8] font-medium"
+                    : hasValue
+                    ? "text-[#444746]"
+                    : "text-[#444746]"
+                }`}
               >
-                <span>Continue with Google</span>
-              </button>
-            </form>
-          </div>
-        )}
+                Email or phone
+              </label>
 
-        {/* Bottom Trust info */}
-        <div className="pt-4 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-500">
-          <span className="flex items-center gap-1">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            Device Privacy Protected
-          </span>
-          <Link
-            href={redirectTarget}
-            className="hover:underline text-gray-600"
-          >
-            Cancel
-          </Link>
+              <input
+                id="identifierId"
+                name="email"
+                type="email"
+                autoComplete="email"
+                autoFocus
+                required
+                value={email}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-3.5 py-3.5 text-base text-[#1f1f1f] bg-transparent outline-none rounded-[4px]"
+              />
+            </div>
+          </div>
+
+          {/* Forgot email? */}
+          <div className="pt-1.5">
+            <button
+              type="button"
+              onClick={() => setEmail("guest.coffee@jhescafe.ph")}
+              className="text-sm font-medium text-[#1a73e8] hover:underline cursor-pointer"
+            >
+              Forgot email?
+            </button>
+          </div>
+
+          {/* Guest mode copy */}
+          <div className="pt-8 text-sm text-[#444746] leading-relaxed">
+            Not your computer? Use Guest mode to sign in privately.
+            <br />
+            <Link
+              href={`/login?redirect=${encodeURIComponent(redirectTarget)}`}
+              className="text-[#1a73e8] font-medium hover:underline inline-block mt-0.5"
+            >
+              Learn more
+            </Link>
+          </div>
+
+          {/* Action Buttons Row */}
+          <div className="pt-10 flex items-center justify-between">
+            <Link
+              href={`/register?redirect=${encodeURIComponent(redirectTarget)}`}
+              className="text-sm font-medium text-[#1a73e8] hover:bg-blue-50/70 px-2.5 py-2 -ml-2.5 rounded-[4px] transition-colors"
+            >
+              Create account
+            </Link>
+
+            <button
+              type="submit"
+              disabled={isProcessing}
+              className="px-6 py-2.5 rounded-[4px] bg-[#1a73e8] hover:bg-[#1557b0] active:bg-[#174ea6] text-white text-sm font-medium transition-colors shadow-xs hover:shadow-sm disabled:opacity-60 cursor-pointer"
+            >
+              {isProcessing ? "Signing in..." : "Next"}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Bottom Google Footer Row */}
+      <div className="w-full max-w-[450px] mt-4 px-2 flex items-center justify-between text-xs text-[#444746]">
+        <div className="flex items-center gap-1.5 cursor-pointer hover:text-[#1f1f1f]">
+          <span>English (United States)</span>
+          <ChevronDown className="w-3.5 h-3.5" />
         </div>
 
+        <div className="flex items-center gap-6">
+          <a
+            href="https://support.google.com/accounts"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-[#1f1f1f]"
+          >
+            Help
+          </a>
+          <a
+            href="https://policies.google.com/privacy"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-[#1f1f1f]"
+          >
+            Privacy
+          </a>
+          <a
+            href="https://policies.google.com/terms"
+            target="_blank"
+            rel="noreferrer"
+            className="hover:text-[#1f1f1f]"
+          >
+            Terms
+          </a>
+        </div>
       </div>
     </div>
   );
