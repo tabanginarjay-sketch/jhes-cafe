@@ -24,7 +24,7 @@ function RegisterForm() {
   const searchParams = useSearchParams();
   const redirectTarget = searchParams.get("redirect") || "/account";
 
-  const { register } = useAuth();
+  const { registerWithEmail } = useAuth();
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -66,9 +66,10 @@ function RegisterForm() {
     setIsSubmitting(true);
     try {
       const cleanPhone = phone.replace(/[^0-9+]/g, "").trim();
-      const created = await register({
+      const created = await registerWithEmail({
         full_name: fullName.trim(),
         email: email.trim().toLowerCase(),
+        password,
         phone: cleanPhone || undefined,
       });
 

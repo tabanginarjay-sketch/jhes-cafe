@@ -13,7 +13,7 @@ export default function AdminCustomersPage() {
       setLoading(true);
       const res = await fetch(`${API_BASE_URL}/users`, { cache: "no-store" });
       if (res.ok) setCustomers(await res.json());
-    } catch {}
+    } catch { }
     finally {
       setLoading(false);
     }
@@ -76,9 +76,8 @@ export default function AdminCustomersPage() {
                     <td className="p-4 text-[#573B2C] font-mono">{c.email}</td>
                     <td className="p-4 font-mono">{c.phone || "—"}</td>
                     <td className="p-4">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                        isVip ? "bg-[#173D2B] text-[#C9AE8B]" : "bg-[#F5F0E7] text-[#573B2C]"
-                      }`}>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${isVip ? "bg-[#173D2B] text-[#C9AE8B]" : "bg-[#F5F0E7] text-[#573B2C]"
+                        }`}>
                         {c.role || "Customer"}
                       </span>
                     </td>

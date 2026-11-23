@@ -1,12 +1,32 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { UserData, registerCustomer, fetchUserByEmail, bindSocialAccountApi } from "@/lib/api";
+import {
+  UserData,
+  registerCustomer,
+  fetchUserByEmail,
+  bindSocialAccountApi,
+  authWithGoogle,
+  authRegister,
+  authLogin,
+  authGetMe,
+  authLogout,
+  AuthSessionResponse,
+} from "@/lib/api";
 
 interface AuthContextType {
   user: UserData | null;
+  sessionToken: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  loginWithGoogle: (idToken: string, clientId?: string) => Promise<UserData>;
+  registerWithEmail: (payload: {
+    full_name: string;
+    email: string;
+    password: string;
+    phone?: string;
+  }) => Promise<UserData>;
+  loginWithEmail: (payload: { email: string; password: string }) => Promise<UserData>;
   register: (payload: { full_name: string; email: string; phone?: string }) => Promise<UserData>;
   login: (email: string) => Promise<UserData>;
   bindSocialAccount: (
@@ -15,36 +35,109 @@ interface AuthContextType {
     name: string,
     avatarUrl?: string
   ) => Promise<UserData>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateUserLocally: (updated: Partial<UserData>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const STORAGE_KEY = "brew_and_co_user";
+const TOKEN_KEY = "brew_and_co_token";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Re-hydrate session from localStorage on initial render
+  // Re-hydrate session from server HttpOnly cookie or localStorage
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setUser(JSON.parse(stored));
-      } else {
+    async function initSession() {
+      try {
+        // 1. First check server-side verified session via /api/v1/auth/me
+        const serverUser = await authGetMe();
+        if (serverUser) {
+          setUser(serverUser);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(serverUser));
+          return;
+        }
+
+        // 2. Fallback to persisted local session
+        const stored = localStorage.getItem(STORAGE_KEY);
+        const storedToken = localStorage.getItem(TOKEN_KEY);
+        if (stored) {
+          setUser(JSON.parse(stored));
+          if (storedToken) setSessionToken(storedToken);
+        } else {
+          setUser(null);
+        }
+      } catch (e) {
+        console.warn("Session initialization notice:", e);
         setUser(null);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (e) {
-      console.warn("Failed to read user from localStorage", e);
-      setUser(null);
+    }
+    void initSession();
+  }, []);
+
+  const loginWithGoogle = async (idToken: string, clientId?: string): Promise<UserData> => {
+    setIsLoading(true);
+    try {
+      const resp = await authWithGoogle(idToken, clientId);
+      setUser(resp.user);
+      setSessionToken(resp.access_token);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
+      localStorage.setItem(TOKEN_KEY, resp.access_token);
+      localStorage.setItem("brew_and_co_last_device_email", resp.user.email);
+      return resp.user;
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  };
 
-  const register = async (payload: { full_name: string; email: string; phone?: string }): Promise<UserData> => {
+  const registerWithEmail = async (payload: {
+    full_name: string;
+    email: string;
+    password: string;
+    phone?: string;
+  }): Promise<UserData> => {
+    setIsLoading(true);
+    try {
+      const resp = await authRegister(payload);
+      setUser(resp.user);
+      setSessionToken(resp.access_token);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
+      localStorage.setItem(TOKEN_KEY, resp.access_token);
+      localStorage.setItem("brew_and_co_last_device_email", resp.user.email);
+      return resp.user;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginWithEmail = async (payload: {
+    email: string;
+    password: string;
+  }): Promise<UserData> => {
+    setIsLoading(true);
+    try {
+      const resp = await authLogin(payload);
+      setUser(resp.user);
+      setSessionToken(resp.access_token);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
+      localStorage.setItem(TOKEN_KEY, resp.access_token);
+      localStorage.setItem("brew_and_co_last_device_email", resp.user.email);
+      return resp.user;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = async (payload: {
+    full_name: string;
+    email: string;
+    phone?: string;
+  }): Promise<UserData> => {
     setIsLoading(true);
     const cleanEmail = payload.email.trim().toLowerCase();
     try {
@@ -77,7 +170,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     const cleanEmail = email.trim().toLowerCase();
     try {
-      // 1. Try finding in backend/Airtable
       const found = await fetchUserByEmail(cleanEmail);
       if (found) {
         setUser(found);
@@ -86,14 +178,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return found;
       }
 
-      // 2. If not found yet, auto-register customer seamlessly with derived friendly name
       const usernamePart = cleanEmail.split("@")[0] || "Valued Customer";
-      const derivedName = usernamePart
-        .replace(/[._-]/g, " ")
-        .split(" ")
-        .filter(Boolean)
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(" ") || "Valued Customer";
+      const derivedName =
+        usernamePart
+          .replace(/[._-]/g, " ")
+          .split(" ")
+          .filter(Boolean)
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ") || "Valued Customer";
 
       let created: UserData;
       try {
@@ -156,9 +248,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+      await authLogout();
+    } catch {
+      // ignore
+    }
     setUser(null);
+    setSessionToken(null);
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(TOKEN_KEY);
   };
 
   const updateUserLocally = (updated: Partial<UserData>) => {
@@ -172,8 +271,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     <AuthContext.Provider
       value={{
         user,
+        sessionToken,
         isLoading,
         isAuthenticated: !!user,
+        loginWithGoogle,
+        registerWithEmail,
+        loginWithEmail,
         register,
         login,
         bindSocialAccount,

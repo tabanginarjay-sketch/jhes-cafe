@@ -339,3 +339,109 @@ export async function fetchReservations(date?: string) {
   }
   return response.json();
 }
+
+// ==================== AUTHENTICATION API METHODS ====================
+
+export interface AuthSessionResponse {
+  access_token: string;
+  token_type: string;
+  user: UserData;
+  message?: string;
+}
+
+export async function authWithGoogle(idToken: string, clientId?: string): Promise<AuthSessionResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/google`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ id_token: idToken, client_id: clientId }),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.detail || "Google authentication failed");
+  }
+
+  return response.json();
+}
+
+export async function authRegister(payload: {
+  full_name: string;
+  email: string;
+  password: string;
+  phone?: string;
+}): Promise<AuthSessionResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.detail || `Registration failed (HTTP ${response.status})`);
+  }
+
+  return response.json();
+}
+
+export async function authLogin(payload: {
+  email: string;
+  password: string;
+}): Promise<AuthSessionResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.detail || "Invalid email or password.");
+  }
+
+  return response.json();
+}
+
+export async function authGetMe(): Promise<UserData | null> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/me`, {
+      headers: { Accept: "application/json" },
+      credentials: "include",
+      cache: "no-store",
+    });
+
+    if (!response.ok) return null;
+    return response.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function authLogout(): Promise<void> {
+  await fetch(`${API_BASE_URL}/auth/logout`, {
+    method: "POST",
+    headers: { Accept: "application/json" },
+    credentials: "include",
+  }).catch(() => {});
+}
+
+export async function authForgotPassword(email: string): Promise<{ message: string }> {
+  const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  return response.json();
+}
+
+export async function authWithFacebook(accessToken: string): Promise<{ status: string; message: string }> {
+  const response = await fetch(`${API_BASE_URL}/auth/facebook`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ access_token: accessToken }),
+  });
+  return response.json();
+}

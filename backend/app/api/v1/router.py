@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import health
+from app.modules.auth.router import router as auth_router
 from app.modules.catalog.router import router as catalog_router
 from app.modules.orders.router import router as orders_router
 from app.modules.inventory.router import router as inventory_router
@@ -14,6 +15,9 @@ api_router = APIRouter()
 
 # Core health verification
 api_router.include_router(health.router)
+
+# Authentication & session router
+api_router.include_router(auth_router)
 
 # Domain module routers
 api_router.include_router(catalog_router)
