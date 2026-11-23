@@ -174,7 +174,7 @@ function LoginForm() {
     googleAuthUrl.searchParams.set("scope", "openid email profile");
     googleAuthUrl.searchParams.set("prompt", "select_account"); // Guarantees official Google Account Chooser
     googleAuthUrl.searchParams.set("access_type", "offline");
-    googleAuthUrl.searchParams.set("state", encodeURIComponent(redirectTarget));
+    googleAuthUrl.searchParams.set("state", redirectTarget);
     window.location.href = googleAuthUrl.toString();
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
@@ -9,20 +9,58 @@ import { AlertCircle, Coffee, CheckCircle2 } from "lucide-react";
 function GoogleCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { loginWithGoogleCode } = useAuth();
+  const { loginWithGoogleCode, user, isAuthenticated } = useAuth();
 
   const [status, setStatus] = useState<"processing" | "success" | "error">("processing");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Guard against duplicate execution in React Strict Mode / dependency re-triggers
+  const exchangeStartedRef = useRef(false);
+
   useEffect(() => {
+    // If user is already authenticated, redirect smoothly immediately
+    if (isAuthenticated || user) {
+      const state = searchParams.get("state");
+      let target = "/order";
+      if (state) {
+        try {
+          let decoded = decodeURIComponent(state);
+          if (decoded.startsWith("%")) decoded = decodeURIComponent(decoded);
+          if (decoded.startsWith("/") && !decoded.startsWith("//")) target = decoded;
+        } catch {
+          target = "/order";
+        }
+      }
+      setStatus("success");
+      const t = setTimeout(() => router.push(target), 300);
+      return () => clearTimeout(t);
+    }
+
+    if (exchangeStartedRef.current) return;
+
     const code = searchParams.get("code");
     const state = searchParams.get("state");
     const error = searchParams.get("error");
     const errorDescription = searchParams.get("error_description");
 
-    const targetUrl = state ? decodeURIComponent(state) : "/order";
+    // Cleanly sanitize target redirect URL
+    let targetUrl = "/order";
+    if (state) {
+      try {
+        let decoded = decodeURIComponent(state);
+        if (decoded.startsWith("%")) {
+          decoded = decodeURIComponent(decoded);
+        }
+        if (decoded.startsWith("/") && !decoded.startsWith("//")) {
+          targetUrl = decoded;
+        }
+      } catch {
+        targetUrl = "/order";
+      }
+    }
 
     if (error) {
+      exchangeStartedRef.current = true;
       setStatus("error");
       if (error === "access_denied") {
         setErrorMessage("Google account selection was canceled.");
@@ -33,25 +71,50 @@ function GoogleCallbackContent() {
     }
 
     if (!code) {
+      // Check if session exists in localStorage
+      try {
+        const stored = localStorage.getItem("brew_and_co_user");
+        if (stored) {
+          setStatus("success");
+          const t = setTimeout(() => router.push(targetUrl), 300);
+          return () => clearTimeout(t);
+        }
+      } catch {
+        // ignore
+      }
+      exchangeStartedRef.current = true;
       setStatus("error");
       setErrorMessage("No authorization code received from Google. Please try signing in again.");
       return;
     }
 
-    const validCode = code;
+    exchangeStartedRef.current = true;
     let isMounted = true;
 
     async function handleExchange() {
       try {
         const redirectUri = `${window.location.origin}/auth/google/callback`;
-        await loginWithGoogleCode(validCode, redirectUri);
+        await loginWithGoogleCode(code as string, redirectUri);
         if (!isMounted) return;
         setStatus("success");
         setTimeout(() => {
           router.push(targetUrl);
-        }, 600);
+        }, 400);
       } catch (err) {
         if (!isMounted) return;
+
+        // If local user was successfully populated, treat as success
+        try {
+          const stored = localStorage.getItem("brew_and_co_user");
+          if (stored) {
+            setStatus("success");
+            setTimeout(() => router.push(targetUrl), 300);
+            return;
+          }
+        } catch {
+          // ignore
+        }
+
         setStatus("error");
         setErrorMessage(
           err instanceof Error
@@ -66,7 +129,7 @@ function GoogleCallbackContent() {
     return () => {
       isMounted = false;
     };
-  }, [loginWithGoogleCode, router, searchParams]);
+  }, [isAuthenticated, user, loginWithGoogleCode, router, searchParams]);
 
   return (
     <div className="min-h-screen bg-[#FDFBF7] flex flex-col items-center justify-center p-4 selection:bg-[#173D2B] selection:text-white">
@@ -110,7 +173,7 @@ function GoogleCallbackContent() {
               <AlertCircle className="w-6 h-6" />
             </div>
             <h1 className="text-xl font-serif text-red-800 font-bold">
-              Sign-In Failed
+              Sign-In Notice
             </h1>
             <p className="text-sm text-red-700 bg-red-50 p-3.5 rounded-xl border border-red-200">
               {errorMessage}

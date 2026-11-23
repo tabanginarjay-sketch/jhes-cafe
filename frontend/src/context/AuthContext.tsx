@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import {
   UserData,
   registerCustomer,
@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void initSession();
   }, []);
 
-  const loginWithGoogle = async (idToken: string, clientId?: string): Promise<UserData> => {
+  const loginWithGoogle = useCallback(async (idToken: string, clientId?: string): Promise<UserData> => {
     setIsLoading(true);
     try {
       const resp = await authWithGoogle(idToken, clientId);
@@ -95,9 +95,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const loginWithGoogleCode = async (code: string, redirectUri: string, clientId?: string): Promise<UserData> => {
+  const loginWithGoogleCode = useCallback(async (code: string, redirectUri: string, clientId?: string): Promise<UserData> => {
     setIsLoading(true);
     try {
       const resp = await authWithGoogleCode(code, redirectUri, clientId);
@@ -110,7 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const registerWithEmail = async (payload: {
     full_name: string;
