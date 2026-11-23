@@ -7,6 +7,7 @@ import { ShoppingBag, User, Menu, X, Sparkles } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { JhesCafeLogo } from "@/components/brand/JhesCafeLogo";
+import { TopAnnouncementTicker } from "@/components/common/TopAnnouncementTicker";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -34,7 +35,10 @@ export function Navbar() {
     : baseLinks;
 
   return (
-    <header className="sticky top-0 z-40 bg-[#FFFCF7]/90 backdrop-blur-md border-b border-[#E5DACB] transition-all">
+    <header className="sticky top-0 z-40 bg-[#FFFCF7]/95 backdrop-blur-md border-b border-[#E5DACB] transition-all">
+      {/* 1. Global Horizontal Sliding Discount & Perks Marquee Ticker */}
+      <TopAnnouncementTicker />
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           
