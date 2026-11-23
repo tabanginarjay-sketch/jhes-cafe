@@ -1,9 +1,177 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { airtableList, airtableCreate } from "@/lib/airtable";
 
-export async function POST() {
-  return NextResponse.json({
-    status: "prepared",
-    message: "Facebook Login endpoint is prepared. Pending Facebook App Client ID configuration.",
-    phase: 2,
-  });
+const FB_APP_ID = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || "";
+const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET || "";
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    let accessToken = body.access_token;
+    const authCode = body.code;
+    const redirectUri = body.redirect_uri || "";
+
+    if (!accessToken && !authCode) {
+      return NextResponse.json(
+        { detail: "Facebook authorization code or access token is required." },
+        { status: 400 }
+      );
+    }
+
+    // 1. If code is provided, exchange for access token with Facebook Graph API
+    if (authCode) {
+      if (!FB_APP_ID || !FB_APP_SECRET) {
+        return NextResponse.json(
+          {
+            detail:
+              "Facebook App credentials (NEXT_PUBLIC_FACEBOOK_APP_ID / FACEBOOK_APP_SECRET) are pending configuration.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const candidateUris = [
+        redirectUri,
+        "https://jhescafe.vercel.app/auth/facebook/callback",
+        "http://localhost:3002/auth/facebook/callback",
+        "",
+      ].filter((u, i, arr) => u !== undefined && arr.indexOf(u) === i);
+
+      let tokenData: any = null;
+      let lastErr = "";
+
+      for (const uri of candidateUris) {
+        const tokenUrl = new URL("https://graph.facebook.com/v19.0/oauth/access_token");
+        tokenUrl.searchParams.set("client_id", FB_APP_ID);
+        tokenUrl.searchParams.set("client_secret", FB_APP_SECRET);
+        tokenUrl.searchParams.set("code", authCode);
+        if (uri) tokenUrl.searchParams.set("redirect_uri", uri);
+
+        try {
+          const res = await fetch(tokenUrl.toString());
+          if (res.ok) {
+            tokenData = await res.json();
+            accessToken = tokenData.access_token;
+            break;
+          } else {
+            lastErr = await res.text();
+          }
+        } catch (e) {
+          lastErr = String(e);
+        }
+      }
+
+      if (!accessToken) {
+        return NextResponse.json(
+          { detail: `Facebook authorization code exchange failed: ${lastErr}` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // 2. Fetch Facebook User Profile using access token
+    const profileRes = await fetch(
+      `https://graph.facebook.com/me?fields=id,name,email,picture.type(large)&access_token=${encodeURIComponent(
+        accessToken
+      )}`
+    );
+
+    if (!profileRes.ok) {
+      const errText = await profileRes.text();
+      return NextResponse.json(
+        { detail: `Failed to fetch Facebook user profile: ${errText}` },
+        { status: 401 }
+      );
+    }
+
+    const fbUser = await profileRes.json();
+    const verifiedEmail = fbUser.email ? String(fbUser.email).toLowerCase().trim() : null;
+    const verifiedName = fbUser.name || "Facebook Customer";
+    const fbId = String(fbUser.id);
+    const avatarUrl = fbUser.picture?.data?.url || null;
+
+    // Email fallback: If Facebook account didn't share an email, generate deterministic alias
+    const customerEmail = verifiedEmail || `fb_${fbId}@jhescafe.ph`;
+
+    // 3. Lookup or Create User in Airtable
+    let user: any = null;
+    try {
+      const existing = await airtableList("Users", `LOWER({email}) = '${customerEmail}'`, true);
+      if (existing.length > 0) {
+        user = existing[0];
+      } else {
+        try {
+          user = await airtableCreate("Users", {
+            full_name: verifiedName,
+            email: customerEmail,
+          });
+        } catch {
+          user = {
+            id: `fb-${fbId.slice(0, 10)}`,
+            full_name: verifiedName,
+            email: customerEmail,
+            role: "customer",
+            loyalty_points: 25,
+            auth_provider: "facebook",
+            avatar_url: avatarUrl,
+          };
+        }
+      }
+    } catch {
+      user = {
+        id: `fb-${fbId.slice(0, 10)}`,
+        full_name: verifiedName,
+        email: customerEmail,
+        role: "customer",
+        loyalty_points: 25,
+        auth_provider: "facebook",
+        avatar_url: avatarUrl,
+      };
+    }
+
+    const userId = user.id || `fb-${fbId.slice(0, 10)}`;
+    const fullName = user.full_name || verifiedName;
+    const userRole = user.role || "customer";
+
+    // 4. Issue JWT / Session Cookie
+    const token = `jhes_jwt_${Buffer.from(
+      JSON.stringify({
+        sub: userId,
+        email: customerEmail,
+        role: userRole,
+        name: fullName,
+        avatar_url: avatarUrl,
+      })
+    ).toString("base64url")}`;
+
+    const res = NextResponse.json({
+      access_token: token,
+      token_type: "bearer",
+      user: {
+        id: userId,
+        full_name: fullName,
+        email: customerEmail,
+        role: userRole,
+        loyalty_points: user.loyalty_points || 25,
+        auth_provider: "facebook",
+        avatar_url: avatarUrl,
+      },
+      message: `Welcome, ${fullName}!`,
+    });
+
+    res.cookies.set("jhes_session", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60,
+      path: "/",
+    });
+
+    return res;
+  } catch (err) {
+    return NextResponse.json(
+      { detail: err instanceof Error ? err.message : "Internal server error" },
+      { status: 500 }
+    );
+  }
 }

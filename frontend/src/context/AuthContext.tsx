@@ -8,6 +8,7 @@ import {
   bindSocialAccountApi,
   authWithGoogle,
   authWithGoogleCode,
+  authWithFacebook,
   authRegister,
   authLogin,
   authGetMe,
@@ -22,6 +23,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   loginWithGoogle: (idToken: string, clientId?: string) => Promise<UserData>;
   loginWithGoogleCode: (code: string, redirectUri: string, clientId?: string) => Promise<UserData>;
+  loginWithFacebook: (payload: { access_token?: string; code?: string; redirect_uri?: string }) => Promise<UserData>;
   registerWithEmail: (payload: {
     full_name: string;
     email: string;
@@ -96,6 +98,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
     }
   }, []);
+
+  const loginWithFacebook = useCallback(
+    async (payload: { access_token?: string; code?: string; redirect_uri?: string }): Promise<UserData> => {
+      setIsLoading(true);
+      try {
+        const resp = await authWithFacebook(payload);
+        setUser(resp.user);
+        setSessionToken(resp.access_token);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
+        localStorage.setItem(TOKEN_KEY, resp.access_token);
+        localStorage.setItem("brew_and_co_last_device_email", resp.user.email);
+        return resp.user;
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    []
+  );
 
   const loginWithGoogleCode = useCallback(async (code: string, redirectUri: string, clientId?: string): Promise<UserData> => {
     setIsLoading(true);
@@ -293,6 +313,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated: !!user,
         loginWithGoogle,
         loginWithGoogleCode,
+        loginWithFacebook,
         registerWithEmail,
         loginWithEmail,
         register,

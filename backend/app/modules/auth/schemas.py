@@ -12,7 +12,9 @@ class GoogleAuthRequest(BaseModel):
 
 
 class FacebookAuthRequest(BaseModel):
-    access_token: str = Field(..., description="User access token from Facebook Login")
+    access_token: Optional[str] = Field(default=None, description="User access token from Facebook Login")
+    code: Optional[str] = Field(default=None, description="Facebook OAuth authorization code")
+    redirect_uri: Optional[str] = Field(default=None, description="Redirect URI used for code exchange")
     user_id: Optional[str] = Field(default=None, description="Facebook user ID")
 
 

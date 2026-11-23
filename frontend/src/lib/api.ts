@@ -385,6 +385,26 @@ export async function authWithGoogleCode(
   return response.json();
 }
 
+export async function authWithFacebook(payload: {
+  access_token?: string;
+  code?: string;
+  redirect_uri?: string;
+}): Promise<AuthSessionResponse> {
+  const response = await fetch(`${API_BASE_URL}/auth/facebook`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(errorBody.detail || "Facebook authentication failed");
+  }
+
+  return response.json();
+}
+
 export async function authRegister(payload: {
   full_name: string;
   email: string;
@@ -453,15 +473,6 @@ export async function authForgotPassword(email: string): Promise<{ message: stri
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ email }),
-  });
-  return response.json();
-}
-
-export async function authWithFacebook(accessToken: string): Promise<{ status: string; message: string }> {
-  const response = await fetch(`${API_BASE_URL}/auth/facebook`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ access_token: accessToken }),
   });
   return response.json();
 }

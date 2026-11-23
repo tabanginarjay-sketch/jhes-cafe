@@ -179,6 +179,27 @@ function LoginForm() {
     window.location.href = googleAuthUrl.toString();
   };
 
+  const handleFacebookLoginClick = () => {
+    setErrorMessage(null);
+    const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
+    const redirectUri = `${window.location.origin}/auth/facebook/callback`;
+
+    if (!appId) {
+      setErrorMessage(
+        "Facebook Login is ready. To connect with Meta, configure NEXT_PUBLIC_FACEBOOK_APP_ID in your environment."
+      );
+      return;
+    }
+
+    const fbAuthUrl = new URL("https://www.facebook.com/v19.0/dialog/oauth");
+    fbAuthUrl.searchParams.set("client_id", appId);
+    fbAuthUrl.searchParams.set("redirect_uri", redirectUri);
+    fbAuthUrl.searchParams.set("response_type", "code");
+    fbAuthUrl.searchParams.set("scope", "email,public_profile");
+    fbAuthUrl.searchParams.set("state", redirectTarget);
+    window.location.href = fbAuthUrl.toString();
+  };
+
   const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotEmail || !forgotEmail.includes("@")) return;
@@ -237,18 +258,16 @@ function LoginForm() {
                 <span>Continue with Google</span>
               </button>
 
-              {/* Prepared Facebook Button (Phase 2 Ready) */}
+              {/* Official Facebook Button */}
               <button
                 type="button"
-                onClick={() => {
-                  setErrorMessage("Facebook Login is prepared for Phase 2 integration.");
-                }}
-                className="w-full flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-gray-200 bg-gray-50/70 hover:bg-gray-100/80 text-gray-700 font-medium text-xs transition-all cursor-pointer opacity-90"
+                onClick={handleFacebookLoginClick}
+                className="w-full flex items-center justify-center gap-2.5 py-2.5 px-4 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-700 font-medium text-xs transition-all shadow-xs hover:shadow-sm cursor-pointer active:scale-[0.99]"
               >
-                <svg className="w-4 h-4 fill-[#1877F2]" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 fill-[#1877F2] shrink-0" viewBox="0 0 24 24">
                   <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
                 </svg>
-                <span>Continue with Facebook <span className="text-[10px] text-gray-400 font-normal">(Phase 2)</span></span>
+                <span>Continue with Facebook</span>
               </button>
             </div>
 

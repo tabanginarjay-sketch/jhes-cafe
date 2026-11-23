@@ -477,16 +477,148 @@ async def forgot_password(payload: ForgotPasswordRequest) -> dict:
         }
 
 
-# ==================== FACEBOOK LOGIN (PREPARED STUB) ====================
+# ==================== FACEBOOK LOGIN ====================
 
 @router.post(
     "/facebook",
-    summary="Facebook Login integration endpoint (Phase 2 Ready)",
-    description="Prepared structure for verifying Facebook user access token and graph profile.",
+    response_model=AuthSessionResponse,
+    summary="Authenticate via Facebook Login",
+    description="Exchanges code or verifies Facebook access token, retrieves customer profile, and issues session.",
 )
-async def authenticate_facebook(payload: FacebookAuthRequest) -> dict:
-    return {
-        "status": "prepared",
-        "message": "Facebook Login endpoint is prepared. Pending Facebook App Client ID configuration.",
-        "phase": 2,
-    }
+async def authenticate_facebook(
+    payload: FacebookAuthRequest,
+    response: Response,
+    request: Request,
+) -> AuthSessionResponse:
+    access_token = payload.access_token
+    fb_app_id = getattr(settings, "FACEBOOK_APP_ID", None)
+    fb_app_secret = getattr(settings, "FACEBOOK_APP_SECRET", None)
+
+    if not access_token and not payload.code:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Either Facebook access_token or authorization code is required.",
+        )
+
+    # 1. Exchange code if access_token not provided directly
+    if not access_token and payload.code:
+        if not fb_app_id or not fb_app_secret:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Facebook App credentials (FACEBOOK_APP_ID / FACEBOOK_APP_SECRET) not configured.",
+            )
+
+        token_url = "https://graph.facebook.com/v19.0/oauth/access_token"
+        params = {
+            "client_id": fb_app_id,
+            "client_secret": fb_app_secret,
+            "code": payload.code,
+            "redirect_uri": payload.redirect_uri or "",
+        }
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(token_url, params=params)
+            if resp.status_code != 200:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Facebook code exchange failed: {resp.text}",
+                )
+            token_data = resp.json()
+            access_token = token_data.get("access_token")
+
+    if not access_token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unable to obtain valid Facebook access token.",
+        )
+
+    # 2. Query Facebook Graph API for User Profile
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        profile_resp = await client.get(
+            "https://graph.facebook.com/me",
+            params={
+                "fields": "id,name,email,picture.type(large)",
+                "access_token": access_token,
+            },
+        )
+        if profile_resp.status_code != 200:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Invalid or expired Facebook access token: {profile_resp.text}",
+            )
+        fb_user = profile_resp.json()
+
+    fb_id = str(fb_user.get("id", ""))
+    full_name = fb_user.get("name") or "Facebook Guest"
+    email = fb_user.get("email") or f"fb_{fb_id}@jhescafe.ph"
+    picture = fb_user.get("picture", {}).get("data", {}).get("url")
+
+    # 3. Lookup or Create User in Airtable
+    existing_user = None
+    try:
+        if fb_id:
+            existing_user = await user_repo.get_by_provider_sub("facebook", fb_id)
+        if not existing_user:
+            existing_user = await user_repo.get_raw_by_email(email.lower())
+    except Exception as db_err:
+        logger.warning(f"Airtable Facebook lookup warning: {db_err}")
+
+    if existing_user:
+        user_record = existing_user
+        user_id = str(user_record.get("id"))
+        role = str(user_record.get("role", "customer"))
+        loyalty_points = int(user_record.get("loyalty_points", 25))
+    else:
+        try:
+            created_record = await user_repo.create_customer(
+                full_name=full_name,
+                email=email.lower(),
+                auth_provider="facebook",
+                provider_sub=fb_id,
+                avatar_url=picture,
+                loyalty_points=25,
+            )
+            user_record = created_record
+            user_id = str(created_record.get("id"))
+            role = "customer"
+            loyalty_points = 25
+        except Exception:
+            user_id = f"fb-{fb_id[:10]}"
+            role = "customer"
+            loyalty_points = 25
+            user_record = {
+                "id": user_id,
+                "full_name": full_name,
+                "email": email.lower(),
+                "role": role,
+                "loyalty_points": loyalty_points,
+                "auth_provider": "facebook",
+                "avatar_url": picture,
+            }
+
+    # 4. Issue Session Cookie & JWT
+    is_prod = settings.APP_ENV.lower() == "production"
+    token = create_session_token(
+        user_id=user_id,
+        email=email.lower(),
+        role=role,
+        name=full_name,
+        avatar_url=picture,
+    )
+    set_session_cookie(response, token, is_production=is_prod)
+
+    auth_user = AuthUser(
+        id=user_id,
+        full_name=full_name,
+        email=email.lower(),
+        role=role,
+        loyalty_points=loyalty_points,
+        auth_provider="facebook",
+        avatar_url=picture,
+    )
+
+    return AuthSessionResponse(
+        access_token=token,
+        token_type="bearer",
+        user=auth_user,
+        message=f"Welcome, {full_name}!",
+    )
