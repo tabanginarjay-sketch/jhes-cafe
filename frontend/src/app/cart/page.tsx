@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useCart, CartItem } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
+import { getProductImage } from "@/lib/productRegistry";
 
 export default function CartPage() {
   const {
@@ -113,17 +114,11 @@ export default function CartPage() {
                   <div className="flex items-start gap-4 flex-1 min-w-0">
                     {/* Thumbnail */}
                     <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden bg-[#173D2B] border border-[#E5DACB] shrink-0 relative group">
-                      {item.imageUrl ? (
-                        <img
-                          src={item.imageUrl}
-                          alt={item.name}
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-[#C9AE8B]">
-                          <Coffee className="w-8 h-8" />
-                        </div>
-                      )}
+                      <img
+                        src={getProductImage(item)}
+                        alt={item.name}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
                     </div>
 
                     {/* Information */}

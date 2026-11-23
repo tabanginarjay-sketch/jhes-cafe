@@ -67,15 +67,28 @@ export function HomeCustomizer() {
 
   const activeImage = temperature === "Iced" ? selectedBase.icedImage : selectedBase.hotImage;
 
+  const isColdBrew = selectedBase.name.toLowerCase().includes("cold brew");
+
+  const handleBaseChange = (item: (typeof BASE_OPTIONS)[0]) => {
+    setSelectedBase(item);
+    if (item.name.toLowerCase().includes("cold brew")) {
+      setTemperature("Iced");
+    }
+  };
+
   const handleAdd = () => {
+    const slug = selectedBase.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
     addItem({
-      id: `custom-${Date.now()}`,
+      productId: slug,
+      slug: slug,
       name: selectedBase.name,
       price: currentPrice,
       size,
-      temperature,
-      milk: `${milk} (${sweetness}% sweetness)`,
+      temperature: isColdBrew ? "Iced" : temperature,
+      milk: milk,
+      sweetness: sweetness,
       imageUrl: activeImage,
+      customizationSummary: `${size} · ${isColdBrew ? "Iced" : temperature} · ${milk} · ${sweetness}% sweet`,
     });
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 1600);
@@ -122,7 +135,7 @@ export function HomeCustomizer() {
                       <button
                         key={item.name}
                         type="button"
-                        onClick={() => setSelectedBase(item)}
+                        onClick={() => handleBaseChange(item)}
                         className={`p-3 rounded-2xl border text-left transition-all duration-300 cursor-pointer flex items-center gap-3 group hover:-translate-y-0.5 ${active
                           ? "border-[#173D2B] bg-[#F5F0E7] ring-2 ring-[#173D2B] shadow-md scale-[1.01]"
                           : "border-[#E5DACB] bg-white hover:border-[#315640] hover:shadow-xs"
@@ -185,31 +198,50 @@ export function HomeCustomizer() {
 
               {/* Step 3: Temperature */}
               <div className="space-y-2.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#173D2B]">
-                  3. Serving Temperature
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#173D2B]">
+                    3. Serving Temperature
+                  </label>
+                  {isColdBrew && (
+                    <span className="text-[10px] font-mono font-semibold text-cyan-800 bg-cyan-50 border border-cyan-200 px-2 py-0.5 rounded-full">
+                      Highland Iced Only
+                    </span>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-3">
-                  {(["Hot", "Iced"] as const).map((t) => (
-                    <button
-                      key={t}
-                      type="button"
-                      onClick={() => setTemperature(t)}
-                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3 ${temperature === t
-                        ? "bg-[#173D2B] text-white border-[#173D2B] shadow-md ring-2 ring-[#C9AE8B]"
-                        : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#315640]"
+                  {(["Hot", "Iced"] as const).map((t) => {
+                    const isDisabled = isColdBrew && t === "Hot";
+                    const isSelected = isColdBrew ? t === "Iced" : temperature === t;
+                    return (
+                      <button
+                        key={t}
+                        type="button"
+                        disabled={isDisabled}
+                        onClick={() => !isDisabled && setTemperature(t)}
+                        className={`p-3.5 rounded-2xl border text-left transition-all flex items-center gap-3 ${
+                          isDisabled
+                            ? "border-[#E5DACB]/50 bg-gray-50/70 text-gray-400 opacity-50 cursor-not-allowed"
+                            : isSelected
+                            ? "bg-[#173D2B] text-white border-[#173D2B] shadow-md ring-2 ring-[#C9AE8B] cursor-pointer"
+                            : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#315640] cursor-pointer"
                         }`}
-                    >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${temperature === t ? "bg-white/20" : "bg-[#F5F0E7]"}`}>
-                        {t === "Hot" ? <Flame className="w-4 h-4 text-amber-500" /> : <Snowflake className="w-4 h-4 text-cyan-600" />}
-                      </div>
-                      <div>
-                        <p className="font-serif text-xs sm:text-sm font-bold">{t === "Hot" ? "Hot Steamed 65°C" : "Highland Iced"}</p>
-                        <p className={`text-[10px] ${temperature === t ? "text-white/70" : "text-[#573B2C]/70"}`}>
-                          {t === "Hot" ? "Velvety microfoam" : "Chilled over ice"}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
+                      >
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                          isDisabled ? "bg-gray-100 text-gray-400" : isSelected ? "bg-white/20" : "bg-[#F5F0E7]"
+                        }`}>
+                          {t === "Hot" ? <Flame className="w-4 h-4 text-amber-500" /> : <Snowflake className="w-4 h-4 text-cyan-600" />}
+                        </div>
+                        <div>
+                          <p className="font-serif text-xs sm:text-sm font-bold">
+                            {t === "Hot" ? (isDisabled ? "Hot (Unavailable)" : "Hot Steamed 65°C") : "Highland Iced"}
+                          </p>
+                          <p className={`text-[10px] ${isDisabled ? "text-gray-400" : isSelected ? "text-white/70" : "text-[#573B2C]/70"}`}>
+                            {t === "Hot" ? (isDisabled ? "Cold brew steeped cold" : "Velvety microfoam") : "Chilled over ice"}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

@@ -6,83 +6,10 @@ import Link from "next/link";
 import { Plus, Check, ArrowRight, Sparkles, Sliders } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { API_BASE_URL } from "@/lib/api";
-
-interface ProductCardData {
-  id: string;
-  name: string;
-  category_name?: string;
-  price: number;
-  origin?: string;
-  tasting_notes?: string;
-  tag?: string;
-  image_url?: string;
-}
-
-const FALLBACK_PRODUCTS: ProductCardData[] = [
-  {
-    id: "barako-romano",
-    name: "Barako Espresso Romano",
-    category_name: "Signature Espresso",
-    price: 190,
-    origin: "Amadeo, Cavite",
-    tasting_notes: "Heavy body, charred oak, caramelized jackfruit zest & candied lemon twist",
-    tag: "Artisanal",
-    image_url: "https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "spanish-latte-dulce",
-    name: "Spanish Latte Dulce",
-    category_name: "Signature Espresso",
-    price: 220,
-    origin: "Cavite Liberica Blend",
-    tasting_notes: "Spiced condensed milk, double ristretto, Ceylon cinnamon bark dusting",
-    tag: "Bestseller",
-    image_url: "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "tagaytay-cloud-coldbrew",
-    name: "Tagaytay Cloud Cold Brew",
-    category_name: "Cold Brews",
-    price: 240,
-    origin: "Benguet Typica",
-    tasting_notes: "Dense salted vanilla cream cap, 18-hr steeped slow drip, dark cacao finish",
-    tag: "Highland Favorite",
-    image_url: "https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "salted-honey-latte",
-    name: "Salted Wild Honey Latte",
-    category_name: "Warm Classics",
-    price: 230,
-    origin: "Mt. Apo Arabica",
-    tasting_notes: "Wild Tagaytay mountain honey, flaky sea salt froth, steamed velvety milk",
-    tag: "Chef's Pick",
-    image_url: "https://images.unsplash.com/photo-1534778101976-62847782c213?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "burnt-basque-cheesecake",
-    name: "Burnt Basque Cheesecake",
-    category_name: "Artisanal Pastries",
-    price: 280,
-    origin: "In-house Bakery",
-    tasting_notes: "Caramelized charred crown, molten cream center, Maldon sea salt flakes",
-    tag: "Must Try",
-    image_url: "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "rosemary-croissant",
-    name: "Rosemary Butter Croissant",
-    category_name: "Artisanal Pastries",
-    price: 160,
-    origin: "Normandy French Butter",
-    tasting_notes: "Flaky 72-layer honeycomb lamination, fresh rosemary butter glaze",
-    tag: "Freshly Baked",
-    image_url: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=800&q=80",
-  },
-];
+import { CENTRALIZED_CATALOG, getProductImage, CatalogProduct } from "@/lib/productRegistry";
 
 export function BestSellers() {
-  const [products, setProducts] = useState<ProductCardData[]>(FALLBACK_PRODUCTS);
+  const [products, setProducts] = useState<CatalogProduct[]>(CENTRALIZED_CATALOG);
   const { setQuickCustomizeProduct } = useCart();
 
   useEffect(() => {
@@ -92,24 +19,40 @@ export function BestSellers() {
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
-            // Merge with photography
-            const merged = data.map((item: any, idx: number) => ({
-              ...item,
-              image_url:
-                item.image_url ||
-                FALLBACK_PRODUCTS[idx % FALLBACK_PRODUCTS.length].image_url,
+            const mapped: CatalogProduct[] = data.map((item: any) => ({
+              id: item.id,
+              name: item.name,
+              slug: item.slug || item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+              category_name: item.category_name || "Signature Espresso",
+              product_type: item.product_type || "coffee",
+              price: Number(item.price) || 200,
+              origin: item.origin || "Highland Harvest",
+              roast_level: item.roast_level || "Medium Roast",
+              tasting_notes: item.tasting_notes || "Artisanal single origin roast",
+              is_available: item.is_available !== false,
+              tag: item.tag || "Bestseller",
+              image_url: getProductImage(item),
             }));
+
+            // Merge so we maintain our full curated list with verified photos
+            const existingSlugs = new Set(mapped.map((m) => m.slug));
+            const merged = [...mapped];
+            for (const item of CENTRALIZED_CATALOG) {
+              if (!existingSlugs.has(item.slug)) {
+                merged.push(item);
+              }
+            }
             setProducts(merged);
           }
         }
       } catch {
-        // Keep fallback data
+        // Keep CENTRALIZED_CATALOG
       }
     }
     void loadLiveProducts();
   }, []);
 
-  const handleCustomize = (product: ProductCardData) => {
+  const handleCustomize = (product: CatalogProduct) => {
     setQuickCustomizeProduct(product);
   };
 
@@ -140,15 +83,16 @@ export function BestSellers() {
         {/* Product Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {products.slice(0, 6).map((product) => {
+            const imageUrl = getProductImage(product);
             return (
               <div
-                key={product.id}
+                key={product.id || product.slug}
                 className="group flex flex-col rounded-3xl overflow-hidden border border-[#E5DACB] bg-[#F5F0E7]/40 hover:bg-[#F5F0E7]/80 hover:border-[#C9AE8B] transition-all duration-300 shadow-2xs hover:shadow-md"
               >
                 {/* Photo Frame */}
-                <div className="relative aspect-4/3 w-full overflow-hidden bg-[#E5DACB]">
+                <div className="relative aspect-4/3 w-full overflow-hidden bg-[#173D2B]">
                   <img
-                    src={product.image_url || FALLBACK_PRODUCTS[0].image_url}
+                    src={imageUrl}
                     alt={product.name}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                     loading="lazy"
@@ -177,7 +121,9 @@ export function BestSellers() {
                       {product.category_name || "Specialty Drink"}
                     </span>
                     <h3 className="font-serif text-xl font-bold text-[#173D2B] group-hover:text-[#315640] transition-colors">
-                      {product.name}
+                      <Link href={`/menu/${product.slug}`}>
+                        {product.name}
+                      </Link>
                     </h3>
                     <p className="text-xs leading-relaxed text-[#573B2C] line-clamp-2">
                       {product.tasting_notes}
@@ -200,7 +146,7 @@ export function BestSellers() {
                       aria-label={`Customize ${product.name}`}
                     >
                       <Sliders className="w-3.5 h-3.5 text-[#C9AE8B]" />
-                      <span>Customize &amp; Order</span>
+                      <span>Customize</span>
                     </button>
                   </div>
                 </div>

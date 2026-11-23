@@ -1,6 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import { getProductImage } from "@/lib/productRegistry";
 
 export interface CartItem {
   id: string;
@@ -21,9 +22,11 @@ export interface CartItem {
   extraShots?: number;
   toppings?: string[];
 
-  // Pastry customizations
+  // Pastry & Food customizations
   warming?: string;
   addOns?: string[];
+  servingStyle?: string;
+  finishes?: string[];
 
   customizationSummary?: string;
 }
@@ -53,6 +56,9 @@ interface CartContextType {
   setIsCartOpen: (open: boolean) => void;
   toggleCart: () => void;
 
+  // Mutex state to prevent rapid double-clicks
+  isAddingToCart: boolean;
+
   // Customization Editing
   activeEditItem: CartItem | null;
   setActiveEditItem: (item: CartItem | null) => void;
@@ -73,10 +79,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [isHydrated, setIsHydrated] = useState(false);
   const [activeEditItem, setActiveEditItem] = useState<CartItem | null>(null);
   const [quickCustomizeProduct, setQuickCustomizeProduct] = useState<any | null>(null);
+  const [isAddingToCart, setIsAddingToCart] = useState<boolean>(false);
 
   // Flying Add-to-Cart Animation State
   const [flyingItem, setFlyingItem] = useState<FlyingFlyData | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const flyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load from local storage
   useEffect(() => {
@@ -85,7 +93,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (saved) {
         setItems(JSON.parse(saved));
       } else {
-        // Fallback to legacy key if exists
         const legacy = localStorage.getItem("brew_and_co_cart");
         if (legacy) {
           setItems(JSON.parse(legacy));
@@ -139,17 +146,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         targetY,
       });
 
-      // Clear after animation duration
-      setTimeout(() => {
+      if (flyTimeoutRef.current) {
+        clearTimeout(flyTimeoutRef.current);
+      }
+
+      flyTimeoutRef.current = setTimeout(() => {
         setFlyingItem(null);
-        // Subtle cart button bounce
+        // Subtle cart button bounce feedback
         const btn = document.getElementById("navbar-cart-btn");
         if (btn) {
           btn.classList.remove("animate-cart-pop");
           void btn.offsetWidth; // trigger reflow
           btn.classList.add("animate-cart-pop");
         }
-      }, 750);
+      }, 700);
     },
     []
   );
@@ -159,29 +169,40 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     quantity: number = 1,
     sourceElement?: HTMLElement | null
   ) => {
+    // Click mutex: prevent rapid overlapping invocations
+    if (isAddingToCart) return;
+    setIsAddingToCart(true);
+
     const qty = quantity || itemData.quantity || 1;
     const baseSlug = itemData.slug || itemData.productId || itemData.id || "coffee";
     const productId = itemData.productId || itemData.id || baseSlug;
+    const resolvedImage = getProductImage({
+      image_url: itemData.imageUrl,
+      slug: baseSlug,
+      name: itemData.name,
+      id: productId,
+    });
 
-    // Trigger visual flight towards cart
-    if (itemData.imageUrl) {
-      triggerFlyAnimation(itemData.imageUrl, sourceElement);
-    }
+    // 1. Launch smooth curved fly-to-cart animation immediately (0ms)
+    triggerFlyAnimation(resolvedImage, sourceElement);
 
-    // Toast notification
+    // 2. Toast feedback
     showToast(`Added to your bag! • ${itemData.name}`);
 
-    // Create unique signature to group identical customizations
+    // 3. Strict signature: guarantees that different customizations of the same product
+    // (e.g. Spanish Latte Grande Hot 50% vs Tall Iced 100%) remain distinct line items
     const signature = [
       productId,
-      itemData.size || "default",
-      itemData.temperature || "default",
-      itemData.milk || "default",
-      itemData.sweetness !== undefined ? `${itemData.sweetness}%` : "default",
+      itemData.size || "standard",
+      itemData.temperature || "standard",
+      itemData.milk || "standard",
+      itemData.sweetness !== undefined ? `${itemData.sweetness}%` : "standard",
       itemData.extraShots || 0,
-      (itemData.toppings || []).sort().join("_"),
-      itemData.warming || "default",
-      (itemData.addOns || []).sort().join("_"),
+      (itemData.toppings || []).slice().sort().join("_"),
+      itemData.warming || "standard",
+      (itemData.addOns || []).slice().sort().join("_"),
+      itemData.servingStyle || "standard",
+      (itemData.finishes || []).slice().sort().join("_"),
     ].join("|");
 
     const completeItem: CartItem = {
@@ -189,10 +210,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       productId,
       slug: baseSlug,
       name: itemData.name,
-      category: itemData.category || "Specialty Drink",
+      category: itemData.category || "Specialty Item",
       price: itemData.price,
       quantity: qty,
-      imageUrl: itemData.imageUrl,
+      imageUrl: resolvedImage,
       isBakery: itemData.isBakery,
       size: itemData.size,
       temperature: itemData.temperature,
@@ -202,22 +223,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       toppings: itemData.toppings,
       warming: itemData.warming,
       addOns: itemData.addOns,
+      servingStyle: itemData.servingStyle,
+      finishes: itemData.finishes,
       customizationSummary: itemData.customizationSummary,
     };
 
     setItems((prev) => {
-      // Find matching item with exact same customizations
       const existingIdx = prev.findIndex((i) => {
         const iSig = [
           i.productId,
-          i.size || "default",
-          i.temperature || "default",
-          i.milk || "default",
-          i.sweetness !== undefined ? `${i.sweetness}%` : "default",
+          i.size || "standard",
+          i.temperature || "standard",
+          i.milk || "standard",
+          i.sweetness !== undefined ? `${i.sweetness}%` : "standard",
           i.extraShots || 0,
-          (i.toppings || []).sort().join("_"),
-          i.warming || "default",
-          (i.addOns || []).sort().join("_"),
+          (i.toppings || []).slice().sort().join("_"),
+          i.warming || "standard",
+          (i.addOns || []).slice().sort().join("_"),
+          i.servingStyle || "standard",
+          (i.finishes || []).slice().sort().join("_"),
         ].join("|");
         return iSig === signature;
       });
@@ -234,54 +258,57 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return [...prev, completeItem];
     });
 
-    // Auto open cart drawer after fly animation completes
+    // 4. Open cart drawer strictly AFTER flight completes (750ms)
     setTimeout(() => {
       setIsCartOpen(true);
-    }, 600);
+      setIsAddingToCart(false);
+    }, 750);
   };
 
   const updateItem = (id: string, updatedFields: Partial<CartItem>) => {
     setItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
-          return {
-            ...item,
-            ...updatedFields,
-          };
+          const merged = { ...item, ...updatedFields };
+          return merged;
         }
         return item;
       })
     );
-    showToast("Customization updated!");
-    setIsCartOpen(true);
-  };
-
-  const removeItem = (id: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== id));
   };
 
   const updateQuantity = (id: string, delta: number) => {
     setItems((prev) =>
       prev
-        .map((i) => {
-          if (i.id === id) {
-            const newQty = i.quantity + delta;
-            return newQty > 0 ? { ...i, quantity: newQty } : null;
+        .map((item) => {
+          if (item.id === id) {
+            const newQty = item.quantity + delta;
+            return newQty > 0 ? { ...item, quantity: newQty } : null;
           }
-          return i;
+          return item;
         })
-        .filter(Boolean) as CartItem[]
+        .filter((item): item is CartItem => item !== null)
     );
+  };
+
+  const removeItem = (id: string) => {
+    setItems((prev) => prev.filter((item) => item.id !== id));
   };
 
   const clearCart = () => {
     setItems([]);
+    try {
+      localStorage.removeItem("jhes_cafe_cart");
+      localStorage.removeItem("brew_and_co_cart");
+    } catch {
+      // Ignore
+    }
   };
 
-  const totalCount = items.reduce((sum, item) => sum + item.quantity, 0);
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
   const toggleCart = () => setIsCartOpen((prev) => !prev);
+
+  const totalCount = items.reduce((acc, item) => acc + item.quantity, 0);
+  const subtotal = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   return (
     <CartContext.Provider
@@ -297,6 +324,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         isCartOpen,
         setIsCartOpen,
         toggleCart,
+        isAddingToCart,
         activeEditItem,
         setActiveEditItem,
         quickCustomizeProduct,
@@ -306,36 +334,32 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     >
       {children}
 
-      {/* 1. Global Flying Product Image Overlay */}
+      {/* Fly-to-Cart Floating Particle Animation */}
       {flyingItem && (
         <div
-          className="fixed z-50 pointer-events-none rounded-2xl overflow-hidden shadow-2xl border-2 border-[#C9AE8B] animate-fly-to-cart bg-[#173D2B]"
+          className="pointer-events-none fixed z-[9999] rounded-2xl overflow-hidden shadow-2xl border-2 border-[#C9AE8B] animate-fly-to-cart"
           style={
             {
-              top: `${flyingItem.startTop}px`,
-              left: `${flyingItem.startLeft}px`,
-              width: "72px",
-              height: "72px",
-              "--target-x": `${flyingItem.targetX}px`,
-              "--target-y": `${flyingItem.targetY}px`,
+              top: flyingItem.startTop,
+              left: flyingItem.startLeft,
+              "--fly-target-x": `${flyingItem.targetX}px`,
+              "--fly-target-y": `${flyingItem.targetY}px`,
             } as React.CSSProperties
           }
         >
           <img
             src={flyingItem.imageUrl}
-            alt="Flying drink"
-            className="w-full h-full object-cover"
+            alt="Adding item"
+            className="w-16 h-16 sm:w-20 sm:h-20 object-cover"
           />
         </div>
       )}
 
-      {/* 2. Global Toast Notification */}
+      {/* Confirmation Toast */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 animate-bounce-subtle pointer-events-none">
-          <div className="bg-[#173D2B] text-white px-5 py-3 rounded-2xl shadow-2xl border border-[#C9AE8B]/40 flex items-center gap-3 backdrop-blur-md">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-xs font-semibold tracking-wide">{toastMessage}</span>
-          </div>
+        <div className="fixed bottom-6 right-6 z-[9998] flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-[#173D2B] text-white border border-[#C9AE8B]/40 shadow-2xl animate-fade-in-up">
+          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-xs font-medium tracking-wide">{toastMessage}</span>
         </div>
       )}
     </CartContext.Provider>

@@ -2,84 +2,22 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Check, Filter, Sliders, Sparkles } from "lucide-react";
+import { Plus, Check, Filter, Sliders, Sparkles, Coffee } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { API_BASE_URL } from "@/lib/api";
+import { CENTRALIZED_CATALOG, getProductImage, CatalogProduct } from "@/lib/productRegistry";
 
-const CATEGORIES = ["All", "Signature Espresso", "Cold Brews", "Warm Classics", "Artisanal Pastries"];
-
-const FALLBACK_MENU = [
-  {
-    id: "barako-romano",
-    name: "Barako Espresso Romano",
-    slug: "barako-espresso-romano",
-    category: "Signature Espresso",
-    price: 190,
-    origin: "Amadeo, Cavite",
-    notes: "Heavy body, charred oak, caramelized jackfruit zest & candied lemon twist",
-    tag: "Artisanal",
-    image: "https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "spanish-latte-dulce",
-    name: "Spanish Latte Dulce",
-    slug: "spanish-latte-dulce",
-    category: "Signature Espresso",
-    price: 220,
-    origin: "Cavite Liberica Blend",
-    notes: "Spiced condensed milk, double ristretto, Ceylon cinnamon bark dusting",
-    tag: "Bestseller",
-    image: "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "tagaytay-cloud-coldbrew",
-    name: "Tagaytay Cloud Cold Brew",
-    slug: "tagaytay-cloud-coldbrew",
-    category: "Cold Brews",
-    price: 240,
-    origin: "Benguet Typica",
-    notes: "Dense salted vanilla cream cap, 18-hr steeped slow drip, dark cacao finish",
-    tag: "Highland Favorite",
-    image: "https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "salted-honey-latte",
-    name: "Salted Wild Honey Latte",
-    slug: "salted-honey-latte",
-    category: "Warm Classics",
-    price: 230,
-    origin: "Mt. Apo Arabica",
-    notes: "Wild Tagaytay mountain honey, flaky sea salt froth, steamed velvety milk",
-    tag: "Chef's Pick",
-    image: "https://images.unsplash.com/photo-1534778101976-62847782c213?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "burnt-basque-cheesecake",
-    name: "Burnt Basque Cheesecake",
-    slug: "burnt-basque-cheesecake",
-    category: "Artisanal Pastries",
-    price: 280,
-    origin: "In-house Bakery",
-    notes: "Caramelized charred crown, molten cream center, Maldon sea salt flakes",
-    tag: "Must Try",
-    image: "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=800&q=80",
-  },
-  {
-    id: "rosemary-croissant",
-    name: "Rosemary Butter Croissant",
-    slug: "rosemary-butter-croissant",
-    category: "Artisanal Pastries",
-    price: 160,
-    origin: "Normandy French Butter",
-    notes: "Flaky 72-layer honeycomb lamination, fresh rosemary butter glaze",
-    tag: "Freshly Baked",
-    image: "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=800&q=80",
-  },
+const CATEGORIES = [
+  "All",
+  "Signature Espresso",
+  "Cold Brews",
+  "Warm Classics",
+  "Artisanal Pastries",
 ];
 
 export default function MenuPage() {
   const [activeCategory, setActiveCategory] = useState("All");
-  const [menuItems, setMenuItems] = useState(FALLBACK_MENU);
+  const [menuItems, setMenuItems] = useState<CatalogProduct[]>(CENTRALIZED_CATALOG);
   const { setQuickCustomizeProduct } = useCart();
 
   useEffect(() => {
@@ -89,22 +27,34 @@ export default function MenuPage() {
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
-            const mapped = data.map((item: any, idx: number) => ({
+            const mapped: CatalogProduct[] = data.map((item: any) => ({
               id: item.id,
               name: item.name,
-              slug: item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-              category: item.category_name || "Signature Espresso",
-              price: item.price,
+              slug: item.slug || item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+              category_name: item.category_name || "Signature Espresso",
+              product_type: item.product_type || "coffee",
+              price: Number(item.price) || 200,
               origin: item.origin || "Highland Harvest",
-              notes: item.tasting_notes || "Artisanal single origin roast",
+              roast_level: item.roast_level || "Medium Roast",
+              tasting_notes: item.tasting_notes || "Artisanal single origin roast",
+              is_available: item.is_available !== false,
               tag: item.tag || "Fresh",
-              image: FALLBACK_MENU[idx % FALLBACK_MENU.length].image,
+              image_url: getProductImage(item),
             }));
-            setMenuItems(mapped);
+
+            // Merge with centralized catalog items so items not yet in API table are still available
+            const existingSlugs = new Set(mapped.map((m) => m.slug));
+            const merged = [...mapped];
+            for (const item of CENTRALIZED_CATALOG) {
+              if (!existingSlugs.has(item.slug)) {
+                merged.push(item);
+              }
+            }
+            setMenuItems(merged);
           }
         }
       } catch {
-        // Fallback
+        // Keep CENTRALIZED_CATALOG
       }
     }
     void loadMenu();
@@ -113,9 +63,9 @@ export default function MenuPage() {
   const filteredItems =
     activeCategory === "All"
       ? menuItems
-      : menuItems.filter((i) => i.category === activeCategory);
+      : menuItems.filter((i) => i.category_name === activeCategory);
 
-  const handleCustomize = (item: (typeof FALLBACK_MENU)[0]) => {
+  const handleCustomize = (item: CatalogProduct) => {
     setQuickCustomizeProduct(item);
   };
 
@@ -132,78 +82,102 @@ export default function MenuPage() {
             Our Coffee &amp; Bakery Menu
           </h1>
           <p className="text-sm sm:text-base text-[#573B2C] leading-relaxed">
-            Every drink is pulled to order on our manual espresso bar using single-origin beans and slow-steeped highland extractions.
+            Every drink is pulled to order on our manual espresso bar using single-origin beans and slow-steeped highland extractions. Customize to your exact taste.
           </p>
         </div>
 
         {/* Category Pills Filter */}
         <div className="flex items-center justify-center gap-2 flex-wrap">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => setActiveCategory(cat)}
-              className={`px-5 py-2.5 rounded-full text-xs font-semibold tracking-wider transition-all cursor-pointer ${
-                activeCategory === cat
-                  ? "bg-[#173D2B] text-[#FFFCF7] shadow-sm"
-                  : "bg-[#F5F0E7] text-[#573B2C] hover:bg-[#E5DACB]"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+          {CATEGORIES.map((category) => {
+            const isActive = activeCategory === category;
+            return (
+              <button
+                key={category}
+                type="button"
+                onClick={() => setActiveCategory(category)}
+                className={`px-5 py-2.5 rounded-full text-xs font-semibold tracking-wider transition-all cursor-pointer ${
+                  isActive
+                    ? "bg-[#173D2B] text-white shadow-sm ring-1 ring-[#173D2B]"
+                    : "bg-[#F5F0E7] text-[#573B2C] hover:bg-[#E5DACB] hover:text-[#173D2B]"
+                }`}
+              >
+                {category}
+              </button>
+            );
+          })}
         </div>
 
         {/* Menu Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 pt-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredItems.map((item) => {
+            const imageUrl = getProductImage(item);
             return (
               <div
-                key={item.id}
-                className="group flex flex-col rounded-3xl overflow-hidden border border-[#E5DACB] bg-[#F5F0E7]/40 hover:bg-[#F5F0E7]/80 hover:border-[#C9AE8B] transition-all duration-300 shadow-2xs hover:shadow-md"
+                key={item.id || item.slug}
+                className="group rounded-3xl border border-[#E5DACB] bg-white overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
               >
-                <Link href={`/menu/${item.slug}`} className="relative aspect-4/3 overflow-hidden bg-[#E5DACB]">
+                {/* Photo & Tag Header */}
+                <div className="relative h-60 w-full overflow-hidden bg-[#173D2B]">
                   <img
-                    src={item.image}
+                    src={imageUrl}
                     alt={item.name}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
-                  {item.tag && (
-                    <span className="absolute top-4 left-4 px-3 py-1 rounded-full bg-[#173D2B]/90 text-[#FFFCF7] text-[10px] font-semibold uppercase tracking-wider">
-                      {item.tag}
-                    </span>
-                  )}
-                </Link>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent pointer-events-none" />
 
-                <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-[#315640]">
-                      {item.category}
+                  <div className="absolute top-4 left-4 flex gap-2">
+                    <span className="px-3 py-1 rounded-full bg-[#173D2B]/90 backdrop-blur-md text-[#C9AE8B] text-[10px] font-mono font-bold uppercase tracking-widest">
+                      {item.category_name}
                     </span>
-                    <Link href={`/menu/${item.slug}`}>
-                      <h3 className="font-serif text-xl font-bold text-[#173D2B] group-hover:text-[#315640] transition-colors">
-                        {item.name}
-                      </h3>
-                    </Link>
-                    <p className="text-xs text-[#573B2C] line-clamp-2">
-                      {item.notes}
-                    </p>
+                    {item.tag && (
+                      <span className="px-3 py-1 rounded-full bg-[#E5DACB]/90 backdrop-blur-md text-[#573B2C] text-[10px] font-mono font-bold uppercase tracking-wider">
+                        {item.tag}
+                      </span>
+                    )}
                   </div>
 
-                  <div className="flex items-center justify-between pt-4 border-t border-[#E5DACB]">
-                    <div>
-                      <span className="text-[10px] text-[#573B2C]/70 block font-mono">From</span>
-                      <span className="font-serif text-xl font-bold text-[#173D2B]">
+                  <div className="absolute bottom-3 left-4 right-4 text-white">
+                    <p className="text-xs text-white/80 font-mono">
+                      {item.origin}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Details Body */}
+                <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-serif text-xl font-bold text-[#173D2B] leading-tight group-hover:text-[#315640] transition-colors">
+                        <Link href={`/menu/${item.slug}`}>
+                          {item.name}
+                        </Link>
+                      </h3>
+                      <span className="font-mono text-lg font-bold text-[#173D2B] shrink-0">
                         ₱{item.price}
                       </span>
                     </div>
+
+                    <p className="text-xs text-[#573B2C] leading-relaxed line-clamp-2">
+                      {item.tasting_notes}
+                    </p>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="pt-3 border-t border-[#F5F0E7] flex items-center justify-between gap-3">
+                    <Link
+                      href={`/menu/${item.slug}`}
+                      className="text-xs font-semibold text-[#173D2B] hover:text-[#315640] transition-colors underline underline-offset-4"
+                    >
+                      View Recipe Details
+                    </Link>
+
                     <button
                       type="button"
                       onClick={() => handleCustomize(item)}
-                      className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-semibold tracking-wider uppercase transition-all duration-200 cursor-pointer bg-[#173D2B] hover:bg-[#315640] text-white shadow-xs hover:shadow-md active:scale-95"
+                      className="px-4 py-2.5 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white text-xs font-semibold uppercase tracking-wider transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
                     >
                       <Sliders className="w-3.5 h-3.5 text-[#C9AE8B]" />
-                      <span>Customize &amp; Order</span>
+                      <span>Customize</span>
                     </button>
                   </div>
                 </div>

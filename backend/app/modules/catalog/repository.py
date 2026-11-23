@@ -1,6 +1,7 @@
 """Catalog repository handling Products and Categories via Airtable with TTL caching."""
 
-from typing import List, Optional
+import re
+from typing import Any, List, Optional
 from app.core.base_repository import BaseAirtableRepository
 from app.core.config import settings
 from app.core.cache import cache
@@ -14,6 +15,56 @@ from app.modules.catalog.schemas import (
 )
 
 CATALOG_CACHE_TTL = 60.0  # 60 seconds TTL for fast responses and Airtable rate limit protection
+
+PRODUCT_IMAGE_MAP: dict[str, str] = {
+    "barako-espresso-romano": "https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?auto=format&fit=crop&w=800&q=80",
+    "spanish-latte-dulce": "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=800&q=80",
+    "tagaytay-cloud-coldbrew": "https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=800&q=80",
+    "salted-honey-latte": "https://images.unsplash.com/photo-1534778101976-62847782c213?auto=format&fit=crop&w=800&q=80",
+    "burnt-basque-cheesecake": "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=800&q=80",
+    "rosemary-butter-croissant": "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=800&q=80",
+    "glazed-heritage-doughnut": "https://images.unsplash.com/photo-1527515862127-a4fc05baf7a5?auto=format&fit=crop&w=800&q=80",
+    "highland-uji-matcha-latte": "https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=800&q=80",
+}
+
+DEFAULT_IMAGE = "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=800&q=80"
+
+
+def resolve_product_type(name: str, cat: Optional[str] = None) -> str:
+    n = (name or "").lower()
+    c = (cat or "").lower()
+    if "doughnut" in n or "donut" in n or "doughnut" in c:
+        return "doughnut"
+    if "cheesecake" in n or "cake" in n or "cake" in c:
+        return "cake"
+    if "cold brew" in n or "coldbrew" in n or "cold" in c:
+        return "cold_brew"
+    if "matcha" in n or "chocolate" in n or "tea" in n or "tea" in c:
+        return "non_coffee"
+    if "croissant" in n or "pastry" in n or "bread" in n or "pastr" in c or "bake" in c:
+        return "pastry"
+    return "coffee"
+
+
+def resolve_slug(name: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", (name or "item").lower()).strip("-")
+    if "barako" in slug:
+        return "barako-espresso-romano"
+    if "spanish" in slug:
+        return "spanish-latte-dulce"
+    if "cold" in slug and "brew" in slug:
+        return "tagaytay-cloud-coldbrew"
+    if "honey" in slug:
+        return "salted-honey-latte"
+    if "cheesecake" in slug:
+        return "burnt-basque-cheesecake"
+    if "croissant" in slug:
+        return "rosemary-butter-croissant"
+    if "doughnut" in slug or "donut" in slug:
+        return "glazed-heritage-doughnut"
+    if "matcha" in slug:
+        return "highland-uji-matcha-latte"
+    return slug
 
 
 class CategoryRepository(BaseAirtableRepository[CategoryResponse, CategoryCreate, CategoryUpdate]):
@@ -56,6 +107,26 @@ class CategoryRepository(BaseAirtableRepository[CategoryResponse, CategoryCreate
 class ProductRepository(BaseAirtableRepository[ProductResponse, ProductCreate, ProductUpdate]):
     table_name = settings.AIRTABLE_TABLE_PRODUCTS
     response_model = ProductResponse
+
+    def _record_to_model(self, record: dict[str, Any]) -> ProductResponse:
+        """Enrich raw Airtable product record with canonical slug, product_type, and verified image."""
+        fields = dict(record.get("fields", {}))
+        fields["id"] = record.get("id")
+        if "createdTime" in record:
+            fields["created_at"] = record.get("createdTime")
+
+        name = fields.get("name", "")
+        cat_name = fields.get("category_name", "")
+        slug = resolve_slug(name)
+        fields["slug"] = fields.get("slug") or slug
+        fields["product_type"] = fields.get("product_type") or resolve_product_type(name, cat_name)
+        
+        # Ensure image_url is always resolved and high-resolution
+        img = fields.get("image_url")
+        if not img or not img.startswith("http"):
+            fields["image_url"] = PRODUCT_IMAGE_MAP.get(slug, DEFAULT_IMAGE)
+
+        return self.response_model.model_validate(fields)
 
     async def list_all(
         self,

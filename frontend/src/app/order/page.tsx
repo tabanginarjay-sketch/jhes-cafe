@@ -7,6 +7,7 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL, type OrderData } from "@/lib/api";
 import { SocialAuthButtons } from "@/components/auth/SocialAuthButtons";
+import { getProductImage } from "@/lib/productRegistry";
 import {
   ShoppingBag,
   ArrowRight,
@@ -540,25 +541,31 @@ function OrderCheckoutContent() {
                 ) : (
                   <div className="space-y-3 divide-y divide-[#E5DACB]/80 max-h-64 overflow-y-auto pr-1">
                     {items.map((item) => (
-                      <div key={item.id} className="pt-3 first:pt-0 flex justify-between items-start text-xs">
-                        <div>
-                          <p className="font-bold text-[#173D2B]">{item.name}</p>
-                          <p className="text-[10px] text-[#573B2C] leading-snug">
-                            {item.isBakery
-                              ? item.warming || "Freshly Baked"
-                              : [
-                                  item.size,
-                                  item.temperature,
-                                  item.milk?.replace(" Milk", ""),
-                                  item.sweetness !== undefined ? `${item.sweetness}% sweet` : null,
-                                  item.extraShots ? `+${item.extraShots} Shot` : null,
-                                ]
-                                  .filter(Boolean)
-                                  .join(" · ")}
+                      <div key={item.id} className="pt-3 first:pt-0 flex items-start gap-3 text-xs">
+                        <img
+                          src={getProductImage(item)}
+                          alt={item.name}
+                          className="w-12 h-12 rounded-xl object-cover border border-[#E5DACB] shrink-0 bg-[#173D2B]"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-[#173D2B] truncate">{item.name}</p>
+                          <p className="text-[10px] text-[#573B2C] leading-snug line-clamp-2">
+                            {item.customizationSummary ||
+                              (item.isBakery
+                                ? item.warming || "Freshly Baked"
+                                : [
+                                    item.size,
+                                    item.temperature,
+                                    item.milk?.replace(" Milk", ""),
+                                    item.sweetness !== undefined ? `${item.sweetness}% sweet` : null,
+                                    item.extraShots ? `+${item.extraShots} Shot` : null,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · "))}
                           </p>
-                          <p className="text-[10px] text-[#315640] font-mono">Qty: {item.quantity}</p>
+                          <p className="text-[10px] text-[#315640] font-mono mt-0.5">Qty: {item.quantity}</p>
                         </div>
-                        <span className="font-mono font-bold text-[#173D2B]">
+                        <span className="font-mono font-bold text-[#173D2B] shrink-0">
                           ₱{item.price * item.quantity}.00
                         </span>
                       </div>

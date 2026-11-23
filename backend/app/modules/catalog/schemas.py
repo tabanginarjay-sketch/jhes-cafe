@@ -35,8 +35,10 @@ class CategoryResponse(CategoryBase):
 
 class ProductBase(BaseModel):
     name: str = Field(..., description="Product name (e.g. Spanish Latte Dulce)")
+    slug: Optional[str] = Field(default=None, description="URL slug")
     category_name: Optional[str] = Field(default=None, description="Category name")
     category_id: Optional[str] = Field(default=None, description="Associated Category Airtable ID")
+    product_type: Optional[str] = Field(default="coffee", description="Product type category")
     description: Optional[str] = Field(default=None, description="Tasting & ingredient notes")
     price: float = Field(..., gt=0, description="Base price in PHP")
     image_url: Optional[str] = Field(default=None, description="Product image URL")
@@ -53,8 +55,10 @@ class ProductCreate(ProductBase):
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
+    slug: Optional[str] = None
     category_name: Optional[str] = None
     category_id: Optional[str] = None
+    product_type: Optional[str] = None
     description: Optional[str] = None
     price: Optional[float] = None
     image_url: Optional[str] = None

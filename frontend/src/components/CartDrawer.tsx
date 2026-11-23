@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useCart, CartItem } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
+import { getProductImage } from "@/lib/productRegistry";
 
 export function CartDrawer() {
   const {
@@ -108,17 +109,11 @@ export function CartDrawer() {
                   <div className="flex items-start gap-3">
                     {/* Item Thumbnail */}
                     <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden bg-[#173D2B] border border-[#E5DACB] shrink-0">
-                      {item.imageUrl ? (
-                        <img
-                          src={item.imageUrl}
-                          alt={item.name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-[#C9AE8B]">
-                          <Coffee className="w-6 h-6" />
-                        </div>
-                      )}
+                      <img
+                        src={getProductImage(item)}
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
 
                     {/* Details */}
