@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Plus, Check, ArrowRight, Sparkles } from "lucide-react";
+import { Plus, Check, ArrowRight, Sparkles, Sliders } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { API_BASE_URL } from "@/lib/api";
 
@@ -83,8 +83,7 @@ const FALLBACK_PRODUCTS: ProductCardData[] = [
 
 export function BestSellers() {
   const [products, setProducts] = useState<ProductCardData[]>(FALLBACK_PRODUCTS);
-  const [addedIds, setAddedIds] = useState<Record<string, boolean>>({});
-  const { addItem } = useCart();
+  const { setQuickCustomizeProduct } = useCart();
 
   useEffect(() => {
     async function loadLiveProducts() {
@@ -110,21 +109,8 @@ export function BestSellers() {
     void loadLiveProducts();
   }, []);
 
-  const handleAddToCart = (product: ProductCardData) => {
-    addItem({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      size: "Grande 16oz",
-      temperature: product.category_name?.includes("Cold") ? "Iced" : "Hot",
-      milk: "Whole Milk",
-      imageUrl: product.image_url,
-    });
-
-    setAddedIds((prev) => ({ ...prev, [product.id]: true }));
-    setTimeout(() => {
-      setAddedIds((prev) => ({ ...prev, [product.id]: false }));
-    }, 1500);
+  const handleCustomize = (product: ProductCardData) => {
+    setQuickCustomizeProduct(product);
   };
 
   return (
@@ -154,7 +140,6 @@ export function BestSellers() {
         {/* Product Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
           {products.slice(0, 6).map((product) => {
-            const isAdded = addedIds[product.id];
             return (
               <div
                 key={product.id}
@@ -199,10 +184,10 @@ export function BestSellers() {
                     </p>
                   </div>
 
-                  {/* Price & Add to Cart Action */}
+                  {/* Price & Customize Action */}
                   <div className="flex items-center justify-between pt-4 border-t border-[#E5DACB]">
                     <div>
-                      <span className="text-[10px] text-[#573B2C]/70 block font-medium">Regular (16oz)</span>
+                      <span className="text-[10px] text-[#573B2C]/70 block font-mono">From</span>
                       <span className="font-serif text-xl font-bold text-[#173D2B]">
                         ₱{product.price}
                       </span>
@@ -210,25 +195,12 @@ export function BestSellers() {
 
                     <button
                       type="button"
-                      onClick={() => handleAddToCart(product)}
-                      className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-semibold tracking-wider uppercase transition-all duration-200 cursor-pointer shadow-xs active:scale-95 ${
-                        isAdded
-                          ? "bg-emerald-800 text-[#FFFCF7]"
-                          : "bg-[#173D2B] hover:bg-[#315640] text-[#FFFCF7]"
-                      }`}
-                      aria-label={`Add ${product.name} to cart`}
+                      onClick={() => handleCustomize(product)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-semibold tracking-wider uppercase transition-all duration-200 cursor-pointer bg-[#173D2B] hover:bg-[#315640] text-[#FFFCF7] shadow-xs hover:shadow-md active:scale-95"
+                      aria-label={`Customize ${product.name}`}
                     >
-                      {isAdded ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-[#C9AE8B]" />
-                          <span>Added</span>
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="w-3.5 h-3.5 text-[#C9AE8B]" />
-                          <span>Add to Bag</span>
-                        </>
-                      )}
+                      <Sliders className="w-3.5 h-3.5 text-[#C9AE8B]" />
+                      <span>Customize &amp; Order</span>
                     </button>
                   </div>
                 </div>

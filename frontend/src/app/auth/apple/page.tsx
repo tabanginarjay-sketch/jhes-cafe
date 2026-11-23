@@ -45,7 +45,7 @@ function AppleAuthContent() {
     <div className="min-h-screen bg-[#0D0D0D] flex flex-col items-center justify-center p-4 text-white">
       {/* Apple Sheet Card */}
       <div className="w-full max-w-[420px] bg-[#1C1C1E] rounded-3xl p-8 sm:p-10 shadow-2xl border border-white/10 space-y-6">
-        
+
         {/* Apple Logo Header */}
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shadow-lg">

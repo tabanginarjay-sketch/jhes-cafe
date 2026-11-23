@@ -82,7 +82,7 @@ function OrderCheckoutContent() {
     setError(null);
 
     const payload = {
-      order_number: `BNC-${Math.floor(1000 + Math.random() * 9000)}`,
+      order_number: `JHE-2026-${Math.floor(1000 + Math.random() * 9000)}`,
       customer_name: customerName.trim() || user.full_name,
       customer_email: customerEmail.trim() || user.email,
       customer_phone: customerPhone.trim() || user.phone || "+639178889900",
@@ -91,10 +91,16 @@ function OrderCheckoutContent() {
       special_notes: notes.trim() || null,
       items: items.map((i) => ({
         product_name: i.name,
-        size: i.size || "Grande 16oz",
+        size: i.size || "Regular",
         temperature: i.temperature || "Hot",
         milk_type: i.milk || "Whole Milk",
-        sweetness: 50,
+        sweetness: i.sweetness !== undefined ? i.sweetness : 50,
+        add_ons: [
+          i.extraShots && i.extraShots > 0 ? `+${i.extraShots} Shot(s)` : null,
+          i.toppings && i.toppings.length > 0 ? i.toppings.join(", ") : null,
+          i.warming,
+          i.addOns && i.addOns.length > 0 ? i.addOns.join(", ") : null,
+        ].filter(Boolean).join("; ") || null,
         quantity: i.quantity,
         unit_price: i.price,
         subtotal: i.price * i.quantity,
@@ -537,8 +543,18 @@ function OrderCheckoutContent() {
                       <div key={item.id} className="pt-3 first:pt-0 flex justify-between items-start text-xs">
                         <div>
                           <p className="font-bold text-[#173D2B]">{item.name}</p>
-                          <p className="text-[10px] text-[#573B2C]">
-                            {item.size} · {item.temperature} · {item.milk}
+                          <p className="text-[10px] text-[#573B2C] leading-snug">
+                            {item.isBakery
+                              ? item.warming || "Freshly Baked"
+                              : [
+                                  item.size,
+                                  item.temperature,
+                                  item.milk?.replace(" Milk", ""),
+                                  item.sweetness !== undefined ? `${item.sweetness}% sweet` : null,
+                                  item.extraShots ? `+${item.extraShots} Shot` : null,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")}
                           </p>
                           <p className="text-[10px] text-[#315640] font-mono">Qty: {item.quantity}</p>
                         </div>

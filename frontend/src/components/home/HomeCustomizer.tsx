@@ -84,7 +84,7 @@ export function HomeCustomizer() {
   return (
     <section className="py-20 lg:py-28 bg-[#F5F0E7] border-t border-[#E5DACB]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-        
+
         {/* Section Header */}
         <ScrollReveal direction="up" delay={0}>
           <div className="max-w-2xl space-y-2">
@@ -104,17 +104,17 @@ export function HomeCustomizer() {
         {/* Customizer Workbench Card */}
         <ScrollReveal direction="up" delay={120}>
           <div className="rounded-3xl border border-[#E5DACB] bg-[#FFFCF7] p-6 sm:p-10 shadow-sm grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
+
             {/* Left: Configuration Steps (7 cols) */}
             <div className="lg:col-span-7 space-y-6">
-              
+
               {/* Step 1: Base Roast Selection with Photo Thumbnails */}
               <div className="space-y-2.5">
                 <label className="text-xs font-bold uppercase tracking-wider text-[#173D2B] flex items-center justify-between">
                   <span>1. Select Coffee Base</span>
                   <span className="text-[10px] text-[#573B2C] font-normal lowercase">click to preview photo</span>
                 </label>
-                
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {BASE_OPTIONS.map((item) => {
                     const active = selectedBase.name === item.name;
@@ -123,11 +123,10 @@ export function HomeCustomizer() {
                         key={item.name}
                         type="button"
                         onClick={() => setSelectedBase(item)}
-                        className={`p-3 rounded-2xl border text-left transition-all duration-300 cursor-pointer flex items-center gap-3 group hover:-translate-y-0.5 ${
-                          active
-                            ? "border-[#173D2B] bg-[#F5F0E7] ring-2 ring-[#173D2B] shadow-md scale-[1.01]"
-                            : "border-[#E5DACB] bg-white hover:border-[#315640] hover:shadow-xs"
-                        }`}
+                        className={`p-3 rounded-2xl border text-left transition-all duration-300 cursor-pointer flex items-center gap-3 group hover:-translate-y-0.5 ${active
+                          ? "border-[#173D2B] bg-[#F5F0E7] ring-2 ring-[#173D2B] shadow-md scale-[1.01]"
+                          : "border-[#E5DACB] bg-white hover:border-[#315640] hover:shadow-xs"
+                          }`}
                       >
                         {/* Coffee Thumbnail */}
                         <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-[#E5DACB] bg-[#173D2B]">
@@ -166,11 +165,10 @@ export function HomeCustomizer() {
                         key={s.name}
                         type="button"
                         onClick={() => setSize(s.name as any)}
-                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                          active
-                            ? "bg-[#173D2B] text-white border-[#173D2B] shadow-md ring-2 ring-[#C9AE8B]"
-                            : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#315640]"
-                        }`}
+                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${active
+                          ? "bg-[#173D2B] text-white border-[#173D2B] shadow-md ring-2 ring-[#C9AE8B]"
+                          : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#315640]"
+                          }`}
                       >
                         <span className={`text-[10px] font-mono uppercase ${active ? "text-[#C9AE8B]" : "text-[#573B2C]/70"}`}>
                           {s.volume}
@@ -196,11 +194,10 @@ export function HomeCustomizer() {
                       key={t}
                       type="button"
                       onClick={() => setTemperature(t)}
-                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
-                        temperature === t
-                          ? "bg-[#173D2B] text-white border-[#173D2B] shadow-md ring-2 ring-[#C9AE8B]"
-                          : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#315640]"
-                      }`}
+                      className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center gap-3 ${temperature === t
+                        ? "bg-[#173D2B] text-white border-[#173D2B] shadow-md ring-2 ring-[#C9AE8B]"
+                        : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#315640]"
+                        }`}
                     >
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${temperature === t ? "bg-white/20" : "bg-[#F5F0E7]"}`}>
                         {t === "Hot" ? <Flame className="w-4 h-4 text-amber-500" /> : <Snowflake className="w-4 h-4 text-cyan-600" />}
@@ -229,11 +226,10 @@ export function HomeCustomizer() {
                         key={m.name}
                         type="button"
                         onClick={() => setMilk(m.name as any)}
-                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
-                          active
-                            ? "bg-[#173D2B] text-white border-[#173D2B] shadow-md ring-2 ring-[#C9AE8B]"
-                            : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#315640]"
-                        }`}
+                        className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between ${active
+                          ? "bg-[#173D2B] text-white border-[#173D2B] shadow-md ring-2 ring-[#C9AE8B]"
+                          : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#315640]"
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <p className="font-serif text-xs font-bold">{m.name.replace(" Milk", "")}</p>
@@ -262,11 +258,10 @@ export function HomeCustomizer() {
                       key={val}
                       type="button"
                       onClick={() => setSweetness(val)}
-                      className={`py-1.5 text-center rounded-lg border text-[10px] font-mono font-semibold transition-all cursor-pointer ${
-                        sweetness === val
-                          ? "bg-[#173D2B] text-white border-[#173D2B]"
-                          : "bg-white text-[#573B2C] border-[#E5DACB] hover:border-[#315640]"
-                      }`}
+                      className={`py-1.5 text-center rounded-lg border text-[10px] font-mono font-semibold transition-all cursor-pointer ${sweetness === val
+                        ? "bg-[#173D2B] text-white border-[#173D2B]"
+                        : "bg-white text-[#573B2C] border-[#E5DACB] hover:border-[#315640]"
+                        }`}
                     >
                       {val}%
                     </button>
@@ -287,7 +282,7 @@ export function HomeCustomizer() {
 
             {/* Right: Live Drink Ticket & Visual Coffee Preview (5 cols) */}
             <div className="lg:col-span-5 rounded-3xl border border-[#E5DACB] bg-[#F5F0E7] p-5 sm:p-6 space-y-4 shadow-md sticky top-28 self-start">
-              
+
               {/* Header Strip */}
               <div className="flex items-center justify-between border-b border-[#E5DACB] pb-2.5">
                 <div className="flex items-center gap-1.5 text-[10px] uppercase font-mono font-bold tracking-widest text-[#573B2C]">
@@ -311,11 +306,10 @@ export function HomeCustomizer() {
 
                 {/* Floating Temperature Badge */}
                 <div className="absolute top-3 left-3 z-10">
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md shadow-md ${
-                    temperature === "Hot"
-                      ? "bg-[#573B2C]/90 text-[#DECDB8] border border-[#C9AE8B]/40"
-                      : "bg-[#173D2B]/90 text-cyan-200 border border-cyan-400/40"
-                  }`}>
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider backdrop-blur-md shadow-md ${temperature === "Hot"
+                    ? "bg-[#573B2C]/90 text-[#DECDB8] border border-[#C9AE8B]/40"
+                    : "bg-[#173D2B]/90 text-cyan-200 border border-cyan-400/40"
+                    }`}>
                     {temperature === "Hot" ? (
                       <>
                         <Flame className="w-3 h-3 text-amber-400 animate-pulse" />
@@ -356,7 +350,7 @@ export function HomeCustomizer() {
                 <p className="text-xs text-[#573B2C] leading-relaxed">
                   {selectedBase.notes}
                 </p>
-                
+
                 <div className="text-xs font-mono text-[#573B2C] pt-2 space-y-1.5 border-t border-[#E5DACB]">
                   <div className="flex justify-between">
                     <span className="text-[#573B2C]/70">Size &amp; Temp:</span>
@@ -387,11 +381,10 @@ export function HomeCustomizer() {
                 <button
                   type="button"
                   onClick={handleAdd}
-                  className={`inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full text-xs font-bold tracking-wider uppercase transition-all duration-300 shadow-md hover:shadow-xl hover:scale-[1.02] active:scale-95 cursor-pointer ${
-                    isAdded
-                      ? "bg-emerald-800 text-[#FFFCF7]"
-                      : "bg-[#173D2B] hover:bg-[#315640] text-[#FFFCF7]"
-                  }`}
+                  className={`inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full text-xs font-bold tracking-wider uppercase transition-all duration-300 shadow-md hover:shadow-xl hover:scale-[1.02] active:scale-95 cursor-pointer ${isAdded
+                    ? "bg-emerald-800 text-[#FFFCF7]"
+                    : "bg-[#173D2B] hover:bg-[#315640] text-[#FFFCF7]"
+                    }`}
                 >
                   {isAdded ? (
                     <>
@@ -416,3 +409,4 @@ export function HomeCustomizer() {
     </section>
   );
 }
+

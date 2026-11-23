@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Check, Filter } from "lucide-react";
+import { Plus, Check, Filter, Sliders, Sparkles } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { API_BASE_URL } from "@/lib/api";
 
@@ -80,8 +80,7 @@ const FALLBACK_MENU = [
 export default function MenuPage() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [menuItems, setMenuItems] = useState(FALLBACK_MENU);
-  const [addedIds, setAddedIds] = useState<Record<string, boolean>>({});
-  const { addItem } = useCart();
+  const { setQuickCustomizeProduct } = useCart();
 
   useEffect(() => {
     async function loadMenu() {
@@ -116,18 +115,8 @@ export default function MenuPage() {
       ? menuItems
       : menuItems.filter((i) => i.category === activeCategory);
 
-  const handleAdd = (item: (typeof FALLBACK_MENU)[0]) => {
-    addItem({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      size: "Grande 16oz",
-      temperature: item.category.includes("Cold") ? "Iced" : "Hot",
-      milk: "Whole Milk",
-      imageUrl: item.image,
-    });
-    setAddedIds((prev) => ({ ...prev, [item.id]: true }));
-    setTimeout(() => setAddedIds((prev) => ({ ...prev, [item.id]: false })), 1500);
+  const handleCustomize = (item: (typeof FALLBACK_MENU)[0]) => {
+    setQuickCustomizeProduct(item);
   };
 
   return (
@@ -168,7 +157,6 @@ export default function MenuPage() {
         {/* Menu Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 pt-4">
           {filteredItems.map((item) => {
-            const isAdded = addedIds[item.id];
             return (
               <div
                 key={item.id}
@@ -203,20 +191,19 @@ export default function MenuPage() {
                   </div>
 
                   <div className="flex items-center justify-between pt-4 border-t border-[#E5DACB]">
-                    <span className="font-serif text-xl font-bold text-[#173D2B]">
-                      ₱{item.price}
-                    </span>
+                    <div>
+                      <span className="text-[10px] text-[#573B2C]/70 block font-mono">From</span>
+                      <span className="font-serif text-xl font-bold text-[#173D2B]">
+                        ₱{item.price}
+                      </span>
+                    </div>
                     <button
                       type="button"
-                      onClick={() => handleAdd(item)}
-                      className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-semibold tracking-wider uppercase transition-all cursor-pointer ${
-                        isAdded
-                          ? "bg-emerald-800 text-white"
-                          : "bg-[#173D2B] hover:bg-[#315640] text-white"
-                      }`}
+                      onClick={() => handleCustomize(item)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-semibold tracking-wider uppercase transition-all duration-200 cursor-pointer bg-[#173D2B] hover:bg-[#315640] text-white shadow-xs hover:shadow-md active:scale-95"
                     >
-                      {isAdded ? <Check className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
-                      <span>{isAdded ? "Added" : "Add to Bag"}</span>
+                      <Sliders className="w-3.5 h-3.5 text-[#C9AE8B]" />
+                      <span>Customize &amp; Order</span>
                     </button>
                   </div>
                 </div>

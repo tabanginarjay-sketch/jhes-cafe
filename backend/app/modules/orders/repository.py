@@ -33,7 +33,7 @@ class OrderRepository(BaseAirtableRepository[OrderResponse, OrderCreate, OrderUp
 
     async def create_order_with_items(self, order_data: OrderCreate) -> OrderResponse:
         """Create an Order record and all its child OrderItem records in Airtable."""
-        order_num = order_data.order_number or f"BNC-{int(time.time()) % 100000:05d}"
+        order_num = order_data.order_number or f"JHE-{int(time.time()) % 100000:05d}"
         total_amount = sum(item.subtotal for item in order_data.items)
 
         order_fields = {

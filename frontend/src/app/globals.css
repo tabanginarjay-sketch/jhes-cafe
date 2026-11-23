@@ -329,3 +329,29 @@ html {
 .animate-marquee-reverse:hover {
   animation-play-state: paused;
 }
+
+/* 12. Fluid Fly-To-Cart Curved Path Animation */
+@keyframes flyToCart {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1) rotate(0deg);
+  }
+  35% {
+    opacity: 0.95;
+    transform: translate(calc(var(--target-x) * 0.35), calc(var(--target-y) * 0.15 - 45px)) scale(0.85) rotate(-6deg);
+  }
+  70% {
+    opacity: 0.85;
+    transform: translate(calc(var(--target-x) * 0.75), calc(var(--target-y) * 0.65 - 20px)) scale(0.45) rotate(4deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--target-x), var(--target-y)) scale(0.18) rotate(0deg);
+  }
+}
+
+.animate-fly-to-cart {
+  animation: flyToCart 0.75s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  will-change: transform, opacity;
+}
+

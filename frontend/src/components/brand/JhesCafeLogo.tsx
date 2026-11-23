@@ -41,19 +41,16 @@ export function JhesCafeLogo({
 
   return (
     <div
-      className={`inline-flex items-center transition-transform duration-300 ${
-        variant === "vertical" ? "flex-col text-center gap-3" : "flex-row gap-3.5"
-      } ${className}`}
+      className={`inline-flex items-center transition-transform duration-300 ${variant === "vertical" ? "flex-col text-center gap-3" : "flex-row gap-3.5"
+        } ${className}`}
     >
       {/* Aesthetic Circular Emblem Seal */}
       <div
-        className={`relative shrink-0 rounded-full flex items-center justify-center transition-all duration-300 group-hover:scale-105 ${
-          emblemSizes[size]
-        } ${
-          isDarkBg
+        className={`relative shrink-0 rounded-full flex items-center justify-center transition-all duration-300 group-hover:scale-105 ${emblemSizes[size]
+          } ${isDarkBg
             ? "bg-[#315640] text-[#C9AE8B] shadow-inner"
             : "bg-[#173D2B] text-[#C9AE8B] shadow-md shadow-[#173D2B]/10"
-        }`}
+          }`}
       >
         <svg
           viewBox="0 0 100 100"
@@ -137,15 +134,13 @@ export function JhesCafeLogo({
       {/* Brand Typography (Hidden if emblem only) */}
       {variant !== "emblem" && (
         <div
-          className={`flex flex-col ${
-            variant === "vertical" ? "items-center" : "items-start"
-          }`}
+          className={`flex flex-col ${variant === "vertical" ? "items-center" : "items-start"
+            }`}
         >
           {/* Main Title */}
           <span
-            className={`font-serif font-bold tracking-tight leading-none ${
-              titleSizes[size]
-            } ${isDarkBg ? "text-[#FFFCF7]" : "text-[#173D2B]"}`}
+            className={`font-serif font-bold tracking-tight leading-none ${titleSizes[size]
+              } ${isDarkBg ? "text-[#FFFCF7]" : "text-[#173D2B]"}`}
           >
             Jhe&apos;s Cafe&apos;
           </span>
@@ -153,9 +148,8 @@ export function JhesCafeLogo({
           {/* Subtitle / Tagline */}
           {showSubtitle && (
             <span
-              className={`font-sans uppercase font-semibold mt-1.5 ${
-                subtitleSizes[size]
-              } ${isDarkBg ? "text-[#C9AE8B]" : "text-[#573B2C]"}`}
+              className={`font-sans uppercase font-semibold mt-1.5 ${subtitleSizes[size]
+                } ${isDarkBg ? "text-[#C9AE8B]" : "text-[#573B2C]"}`}
             >
               Artisan Roastery &amp; Coffee Lounge
             </span>

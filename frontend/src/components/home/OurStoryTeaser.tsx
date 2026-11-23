@@ -6,7 +6,7 @@ export function OurStoryTeaser() {
     <section className="py-20 lg:py-28 bg-[#FFFCF7] overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
-          
+
           {/* Left: Editorial Photography Pair */}
           <div className="lg:col-span-6 relative">
             <div className="relative z-10 rounded-3xl overflow-hidden shadow-xl aspect-4/5 max-w-md mx-auto lg:mx-0 border border-[#E5DACB]">
@@ -17,7 +17,7 @@ export function OurStoryTeaser() {
                 loading="lazy"
               />
             </div>
-            
+
             {/* Overlapping Detail Frame */}
             <div className="hidden sm:block absolute -bottom-8 -right-4 lg:right-6 z-20 w-56 rounded-2xl overflow-hidden shadow-2xl border-4 border-[#FFFCF7]">
               <img

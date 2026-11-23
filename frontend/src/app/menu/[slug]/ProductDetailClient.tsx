@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -165,6 +165,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const [pastryHeating, setPastryHeating] = useState<"Warm & Toasted" | "Room Temperature">("Warm & Toasted");
   const [quantity, setQuantity] = useState(1);
   const [isAdded, setIsAdded] = useState(false);
+  const addBtnRef = useRef<HTMLButtonElement | null>(null);
 
   // Live catalog check fallback
   useEffect(() => {
@@ -232,15 +233,25 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
     addItem(
       {
-        id: `${product.id}-${size}-${temp}-${milk}-${sweetness}-${extraShots}-${selectedToppings.join("_")}`,
+        productId: product.id,
+        slug: product.slug,
         name: product.name,
+        category: product.category,
         price: unitPrice,
+        quantity,
         size: product.isBakery ? undefined : size,
         temperature: product.isBakery ? undefined : temp,
-        milk: product.isBakery ? undefined : `${milk} (${customSummary})`,
+        milk: product.isBakery ? undefined : milk,
+        sweetness: product.isBakery ? undefined : sweetness,
+        extraShots: product.isBakery ? undefined : extraShots,
+        toppings: product.isBakery ? undefined : selectedToppings,
+        warming: product.isBakery ? pastryHeating : undefined,
+        customizationSummary: customSummary,
         imageUrl: product.imageUrl,
+        isBakery: product.isBakery,
       },
-      quantity
+      quantity,
+      addBtnRef.current
     );
 
     setIsAdded(true);
@@ -780,6 +791,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
                 {/* Prominent Add to Cart Button */}
                 <button
+                  ref={addBtnRef}
                   type="button"
                   onClick={handleAdd}
                   className={`w-full py-4 rounded-full font-semibold text-xs tracking-wider uppercase transition-all shadow-md active:scale-98 flex items-center justify-center gap-2.5 cursor-pointer ${

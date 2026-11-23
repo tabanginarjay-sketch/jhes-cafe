@@ -92,7 +92,7 @@ function RegisterForm() {
   return (
     <div className="py-12 sm:py-20 flex-1 flex items-center justify-center bg-[#FFFCF7] px-4">
       <div className="w-full max-w-xl space-y-8">
-        
+
         {/* Success Modal / Banner when user successfully created */}
         {registeredUser ? (
           <div className="rounded-3xl border border-[#315640]/30 bg-[#F5F0E7] p-8 sm:p-12 text-center space-y-6 shadow-xl animate-in fade-in zoom-in-95 duration-300">
@@ -131,7 +131,7 @@ function RegisterForm() {
         ) : (
           /* Registration Form Card */
           <div className="rounded-3xl border border-[#E5DACB] bg-white p-8 sm:p-12 shadow-md space-y-8">
-            
+
             {/* Header with Emblem Logo */}
             <div className="text-center space-y-3">
               <div className="flex justify-center">
@@ -161,7 +161,7 @@ function RegisterForm() {
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-              
+
               {/* Full Name */}
               <div>
                 <label className="font-semibold text-[#173D2B] block mb-1.5">

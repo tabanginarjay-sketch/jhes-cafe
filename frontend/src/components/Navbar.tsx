@@ -101,6 +101,7 @@ export function Navbar() {
             {/* Shopping Cart Button with Animated Pop on Badge Change */}
             <button
               type="button"
+              id="navbar-cart-btn"
               onClick={toggleCart}
               className="relative flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-[#173D2B] hover:bg-[#315640] text-[#F5F0E7] text-xs font-semibold tracking-wider transition-all duration-300 shadow-sm hover:shadow-md hover:scale-[1.03] active:scale-95 cursor-pointer"
             >
