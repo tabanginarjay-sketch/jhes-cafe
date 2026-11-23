@@ -19,12 +19,18 @@ CATALOG_CACHE_TTL = 60.0  # 60 seconds TTL for fast responses and Airtable rate 
 PRODUCT_IMAGE_MAP: dict[str, str] = {
     "barako-espresso-romano": "https://images.unsplash.com/photo-1510591509098-f4fdc6d0ff04?auto=format&fit=crop&w=800&q=80",
     "spanish-latte-dulce": "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=800&q=80",
+    "iced-brown-sugar-shaken-espresso": "/images/products/iced-brown-sugar-espresso.jpg",
+    "single-origin-affogato-al-caffe": "/images/products/single-origin-affogato.jpg",
     "tagaytay-cloud-coldbrew": "https://images.unsplash.com/photo-1517701604599-bb29b565090c?auto=format&fit=crop&w=800&q=80",
+    "kyoto-drip-slow-pour-cold-brew": "/images/products/kyoto-drip-coldbrew.jpg",
     "salted-honey-latte": "https://images.unsplash.com/photo-1534778101976-62847782c213?auto=format&fit=crop&w=800&q=80",
+    "tagaytay-tablea-mocha": "/images/products/tagaytay-tablea-mocha.jpg",
+    "highland-uji-matcha-latte": "https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=800&q=80",
+    "glazed-heritage-doughnut": "/images/products/vanilla-bean-glazed-doughnut.jpg",
+    "dark-cacao-ganache-brioche-doughnut": "/images/products/dark-cacao-ganache-doughnut.jpg",
     "burnt-basque-cheesecake": "https://images.unsplash.com/photo-1533134242443-d4fd215305ad?auto=format&fit=crop&w=800&q=80",
     "rosemary-butter-croissant": "https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&w=800&q=80",
-    "glazed-heritage-doughnut": "https://images.unsplash.com/photo-1527515862127-a4fc05baf7a5?auto=format&fit=crop&w=800&q=80",
-    "highland-uji-matcha-latte": "https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=800&q=80",
+    "strawberry-pistachio-croissant": "/images/products/strawberry-pistachio-croissant.jpg",
 }
 
 DEFAULT_IMAGE = "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=800&q=80"
@@ -52,14 +58,26 @@ def resolve_slug(name: str) -> str:
         return "barako-espresso-romano"
     if "spanish" in slug:
         return "spanish-latte-dulce"
+    if "shaken" in slug or "brown-sugar" in slug:
+        return "iced-brown-sugar-shaken-espresso"
+    if "affogato" in slug:
+        return "single-origin-affogato-al-caffe"
+    if "kyoto" in slug:
+        return "kyoto-drip-slow-pour-cold-brew"
     if "cold" in slug and "brew" in slug:
         return "tagaytay-cloud-coldbrew"
     if "honey" in slug:
         return "salted-honey-latte"
+    if "tablea" in slug or "mocha" in slug:
+        return "tagaytay-tablea-mocha"
     if "cheesecake" in slug:
         return "burnt-basque-cheesecake"
+    if "strawberry" in slug and "croissant" in slug:
+        return "strawberry-pistachio-croissant"
     if "croissant" in slug:
         return "rosemary-butter-croissant"
+    if "cacao" in slug and ("doughnut" in slug or "donut" in slug):
+        return "dark-cacao-ganache-brioche-doughnut"
     if "doughnut" in slug or "donut" in slug:
         return "glazed-heritage-doughnut"
     if "matcha" in slug:

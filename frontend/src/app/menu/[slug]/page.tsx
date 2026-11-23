@@ -5,10 +5,18 @@ export function generateStaticParams() {
   return [
     { slug: "barako-espresso-romano" },
     { slug: "spanish-latte-dulce" },
+    { slug: "iced-brown-sugar-shaken-espresso" },
+    { slug: "single-origin-affogato-al-caffe" },
     { slug: "tagaytay-cloud-coldbrew" },
+    { slug: "kyoto-drip-slow-pour-cold-brew" },
     { slug: "salted-honey-latte" },
+    { slug: "tagaytay-tablea-mocha" },
+    { slug: "highland-uji-matcha-latte" },
+    { slug: "glazed-heritage-doughnut" },
+    { slug: "dark-cacao-ganache-brioche-doughnut" },
     { slug: "burnt-basque-cheesecake" },
     { slug: "rosemary-butter-croissant" },
+    { slug: "strawberry-pistachio-croissant" },
   ];
 }
 
