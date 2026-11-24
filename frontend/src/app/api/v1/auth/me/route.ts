@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthenticatedUser } from "@/lib/serverAuth";
+import { airtableList, airtableUpdate } from "@/lib/airtable";
+import {
+  SESSION_COOKIE_NAME,
+  escapeFormulaString,
+  getAuthenticatedUser,
+  hashPassword,
+  sanitizeNumericPhone,
+  signSessionToken,
+  verifyPassword,
+} from "@/lib/serverAuth";
+import { serverPasswordStore } from "@/lib/passwordStore";
 import { getCanonicalCustomer, reconcileCustomerLoyalty } from "@/lib/customerPersistence";
 
 export async function GET(req: NextRequest) {
@@ -52,8 +62,24 @@ export async function GET(req: NextRequest) {
       session.avatar_url
     );
 
-    // Reconcile live loyalty balance from transaction ledger
+    // Reconcile live loyalty balance from authoritative transaction ledger using canonical customer ID
     const reconciledPoints = await reconcileCustomerLoyalty(canonical.id, session.email);
+
+    // Determine whether this account has an email+password hash configured
+    const cleanEmail = canonical.email.toLowerCase().trim();
+    let hasPassword = Boolean(serverPasswordStore.get(cleanEmail));
+    if (!hasPassword) {
+      try {
+        const safeEmail = escapeFormulaString(cleanEmail);
+        const matches = await airtableList("Users", `LOWER({email}) = '${safeEmail}'`, true);
+        const target = matches.find((m: any) => m.id === canonical.id) || matches[0];
+        if (target && (target as any).password_hash) {
+          hasPassword = true;
+        }
+      } catch {
+        // Ignore lookup error
+      }
+    }
 
     return NextResponse.json(
       {
@@ -63,7 +89,8 @@ export async function GET(req: NextRequest) {
         phone: canonical.phone ?? null,
         role: canonical.role || session.role || "customer",
         loyalty_points: reconciledPoints,
-        auth_provider: canonical.auth_provider || session.auth_provider || "email",
+        auth_provider: session.auth_provider || canonical.auth_provider || "email",
+        has_password: hasPassword,
         avatar_url: canonical.avatar_url || session.avatar_url || null,
       },
       { headers: { "Cache-Control": "no-store" } }
@@ -71,6 +98,168 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     return NextResponse.json(
       { detail: err instanceof Error ? err.message : "Internal error" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/v1/auth/me
+ * Allows an authenticated customer to update ONLY their own profile details
+ * (full_name, phone) or set/change their password. Strictly rejects role/email/loyalty tampering.
+ */
+export async function PATCH(req: NextRequest) {
+  const session = getAuthenticatedUser(req);
+  if (!session) {
+    return NextResponse.json(
+      { detail: "Authentication required to update profile." },
+      { status: 401, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
+  try {
+    const body = await req.json();
+
+    // Block privilege or balance tampering
+    if (body.role !== undefined || body.loyalty_points !== undefined || body.email !== undefined) {
+      return NextResponse.json(
+        { detail: "Email, account role, and loyalty balance cannot be modified directly." },
+        { status: 403 }
+      );
+    }
+
+    const canonical = await getCanonicalCustomer(
+      session.email,
+      session.name,
+      null,
+      session.auth_provider || "email",
+      session.avatar_url
+    );
+
+    const fieldsToUpdate: Record<string, unknown> = {};
+    let nextFullName = canonical.full_name;
+    let nextPhone = canonical.phone ?? null;
+
+    if (body.full_name !== undefined) {
+      const cleanName = String(body.full_name).trim();
+      if (cleanName.length < 2 || cleanName.length > 80) {
+        return NextResponse.json(
+          { detail: "Full name must be between 2 and 80 characters." },
+          { status: 400 }
+        );
+      }
+      fieldsToUpdate.full_name = cleanName;
+      nextFullName = cleanName;
+    }
+
+    if (body.phone !== undefined) {
+      const rawPhone = String(body.phone || "").trim();
+      if (rawPhone === "") {
+        nextPhone = null;
+      } else {
+        const sanitized = sanitizeNumericPhone(rawPhone);
+        if (sanitized === undefined) {
+          return NextResponse.json(
+            { detail: "Please enter a valid mobile number (at least 7 digits)." },
+            { status: 400 }
+          );
+        }
+        fieldsToUpdate.phone = sanitized;
+        nextPhone = sanitized;
+      }
+    }
+
+    // Optional Password Management
+    let passwordUpdated = false;
+    if (body.new_password !== undefined && String(body.new_password).length > 0) {
+      const newPassword = String(body.new_password);
+      if (newPassword.length < 6) {
+        return NextResponse.json(
+          { detail: "New password must be at least 6 characters long." },
+          { status: 400 }
+        );
+      }
+
+      const cleanEmail = canonical.email.toLowerCase().trim();
+      const safeEmail = escapeFormulaString(cleanEmail);
+      const matches = await airtableList("Users", `LOWER({email}) = '${safeEmail}'`, true).catch(() => []);
+      const targetUser: any = matches.find((m: any) => m.id === canonical.id) || matches[0];
+      const existingHash: string | undefined =
+        targetUser?.password_hash || serverPasswordStore.get(cleanEmail);
+
+      if (existingHash) {
+        const currentPassword = String(body.current_password || "");
+        if (!currentPassword || !verifyPassword(currentPassword, existingHash)) {
+          return NextResponse.json(
+            { detail: "Current password is incorrect." },
+            { status: 400 }
+          );
+        }
+      }
+
+      const newHash = hashPassword(newPassword);
+      serverPasswordStore.set(cleanEmail, newHash);
+      passwordUpdated = true;
+
+      // Best-effort persist to Airtable Users.password_hash if column exists
+      try {
+        await airtableUpdate("Users", canonical.id, { password_hash: newHash });
+      } catch {
+        // Ignore if Airtable base lacks optional password_hash column
+      }
+    }
+
+    if (Object.keys(fieldsToUpdate).length > 0 && canonical.id.startsWith("rec")) {
+      await airtableUpdate("Users", canonical.id, fieldsToUpdate);
+    }
+
+    const reconciledPoints = await reconcileCustomerLoyalty(canonical.id, canonical.email);
+    const hasPassword = passwordUpdated || Boolean(serverPasswordStore.get(canonical.email.toLowerCase().trim()));
+
+    const updatedUser = {
+      id: canonical.id,
+      full_name: nextFullName,
+      email: canonical.email,
+      phone: nextPhone,
+      role: canonical.role || session.role || "customer",
+      loyalty_points: reconciledPoints,
+      auth_provider: session.auth_provider || canonical.auth_provider || "email",
+      has_password: hasPassword,
+      avatar_url: canonical.avatar_url || session.avatar_url || null,
+    };
+
+    const refreshedToken = signSessionToken({
+      sub: updatedUser.id,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      name: updatedUser.full_name,
+      auth_provider: updatedUser.auth_provider,
+      avatar_url: updatedUser.avatar_url,
+    });
+
+    const res = NextResponse.json(
+      {
+        user: updatedUser,
+        password_updated: passwordUpdated,
+        message: passwordUpdated
+          ? "Account profile and password updated successfully."
+          : "Profile updated successfully.",
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+
+    res.cookies.set(SESSION_COOKIE_NAME, refreshedToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 7 * 24 * 60 * 60,
+      path: "/",
+    });
+
+    return res;
+  } catch (err) {
+    return NextResponse.json(
+      { detail: err instanceof Error ? err.message : "Failed to update account profile" },
       { status: 500 }
     );
   }

@@ -124,7 +124,16 @@ function RegisterForm() {
                 href={redirectTarget}
                 className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white text-xs font-semibold uppercase tracking-wider transition-all shadow-md hover:shadow-lg"
               >
-                <span>Continue to {redirectTarget === "/order" ? "Checkout" : redirectTarget === "/our-cafe" ? "Table Booking" : "My Profile"}</span>
+                <span>
+                  Continue to{" "}
+                  {redirectTarget === "/checkout" || redirectTarget === "/order"
+                    ? "Checkout"
+                    : redirectTarget === "/my-orders"
+                      ? "My Orders"
+                      : redirectTarget === "/our-cafe"
+                        ? "Table Booking"
+                        : "My Account"}
+                </span>
                 <ArrowRight className="w-4 h-4 text-[#C9AE8B]" />
               </Link>
             </div>

@@ -20,7 +20,9 @@ interface AuthContextType {
   user: UserData | null;
   sessionToken: string | null;
   isLoading: boolean;
+  isRefreshing: boolean;
   isAuthenticated: boolean;
+  refreshUser: () => Promise<UserData | null>;
   loginWithGoogle: (idToken: string, clientId?: string) => Promise<UserData>;
   loginWithGoogleCode: (code: string, redirectUri: string, clientId?: string) => Promise<UserData>;
   loginWithFacebook: (payload: { access_token?: string; code?: string; redirect_uri?: string }) => Promise<UserData>;
@@ -53,6 +55,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const refreshUser = useCallback(async (): Promise<UserData | null> => {
+    setIsRefreshing(true);
+    try {
+      const serverUser = await authGetMe();
+      if (serverUser) {
+        setUser(serverUser);
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(serverUser));
+        } catch {}
+        return serverUser;
+      }
+      setUser(null);
+      setSessionToken(null);
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(TOKEN_KEY);
+      } catch {}
+      return null;
+    } catch {
+      return null;
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
 
   // Re-hydrate session strictly from server-verified HttpOnly cookie via /api/v1/auth/me
   useEffect(() => {
@@ -65,18 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } catch {}
         });
 
-        const serverUser = await authGetMe();
-        if (serverUser) {
-          setUser(serverUser);
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(serverUser));
-          return;
-        }
-
-        // If server reports unauthenticated (401), clear stale local cache
-        localStorage.removeItem(STORAGE_KEY);
-        localStorage.removeItem(TOKEN_KEY);
-        setUser(null);
-        setSessionToken(null);
+        await refreshUser();
       } catch (e) {
         console.warn("Session initialization notice:", e);
         setUser(null);
@@ -85,7 +102,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
     void initSession();
-  }, []);
+  }, [refreshUser]);
+
+  // Keep Header, Account, and Checkout synchronized when returning to browser tab
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleFocus = () => {
+      if (user) {
+        void refreshUser();
+      }
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [user, refreshUser]);
 
   const loginWithGoogle = useCallback(async (idToken: string, clientId?: string): Promise<UserData> => {
     setIsLoading(true);
@@ -313,7 +342,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         sessionToken,
         isLoading,
+        isRefreshing,
         isAuthenticated: !!user,
+        refreshUser,
         loginWithGoogle,
         loginWithGoogleCode,
         loginWithFacebook,

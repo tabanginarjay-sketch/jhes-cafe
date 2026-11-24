@@ -148,30 +148,60 @@ export async function getCanonicalCustomer(
   }
 }
 
+export interface CustomerLoyaltyTransaction {
+  id: string;
+  transaction_ref: string;
+  transaction_type: "signup_bonus" | "order_earned" | "redemption" | "adjustment";
+  points: number;
+  signed_points: number;
+  order_reference: string | null;
+  description: string;
+  created_at: string;
+}
+
+export interface CustomerLoyaltySummary {
+  balance: number;
+  total_earned: number;
+  total_redeemed: number;
+  transactions: CustomerLoyaltyTransaction[];
+}
+
 /**
- * Reconciles the customer's loyalty balance against the Payments ledger.
+ * Single authoritative loyalty calculator & ledger reconciler scoped strictly to canonical customerId.
+ * Guarantees Header, My Account, and Checkout always read the exact same Bean Points balance.
  */
-export async function reconcileCustomerLoyalty(
+export async function getCustomerLoyaltySummary(
   customerId: string,
   customerEmail: string
-): Promise<number> {
+): Promise<CustomerLoyaltySummary> {
   const cleanEmail = customerEmail.toLowerCase().trim();
   const safeEmail = escapeFormulaString(cleanEmail);
 
-  let currentPoints = 25;
+  let currentPoints = 0;
   let canonicalUser: any = null;
 
   try {
     const matches = await airtableList("Users", `LOWER({email}) = '${safeEmail}'`, true);
     if (matches.length > 0) {
-      canonicalUser = matches[0];
+      // Strictly prefer the exact canonical customerId, falling back to highest-points record
+      canonicalUser =
+        matches.find((m: any) => String(m.id) === String(customerId)) ||
+        [...matches].sort((a: any, b: any) => {
+          const ptsDiff = (Number(b.loyalty_points) || 0) - (Number(a.loyalty_points) || 0);
+          if (ptsDiff !== 0) return ptsDiff;
+          if (a.phone && !b.phone) return -1;
+          if (!a.phone && b.phone) return 1;
+          return String(a.id).localeCompare(String(b.id));
+        })[0];
       currentPoints = Number(canonicalUser.loyalty_points) || 0;
     }
   } catch {
     // ignore
   }
 
-  // Query transaction ledger records from Payments table
+  const targetCustomerId = String(canonicalUser?.id || customerId);
+  const transactions: CustomerLoyaltyTransaction[] = [];
+
   try {
     const payments = await airtableList(
       "Payments",
@@ -182,45 +212,97 @@ export async function reconcileCustomerLoyalty(
     const customerTxs = payments.filter((p: any) => {
       const txId = String(p.transaction_id || "");
       const orderId = String(p.order_id || "");
-      return txId.includes(customerId) || orderId === customerId;
+      return orderId === targetCustomerId || txId.includes(targetCustomerId);
     });
 
-    if (customerTxs.length > 0) {
-      let ledgerTotal = 0;
-      for (const tx of customerTxs) {
-        const amt = Number(tx.amount) || 0;
-        if (tx.order_number?.includes("REDEEM")) {
-          ledgerTotal -= amt;
-        } else {
-          ledgerTotal += amt;
+    let totalEarned = 0;
+    let totalRedeemed = 0;
+
+    for (const tx of customerTxs) {
+      const amt = Math.abs(Number(tx.amount) || 0);
+      const rawType = String(tx.order_number || "").toUpperCase().trim();
+      const txKey = String(tx.transaction_id || "").trim();
+
+      let txType: CustomerLoyaltyTransaction["transaction_type"] = "adjustment";
+      let signed = amt;
+      let orderRef: string | null = null;
+      let description = "Loyalty Bean Points credit";
+
+      if (rawType.includes("REDEEM")) {
+        txType = "redemption";
+        signed = -amt;
+        totalRedeemed += amt;
+        description = "Bean Points redeemed for reward";
+      } else if (rawType.includes("SIGNUP")) {
+        txType = "signup_bonus";
+        totalEarned += amt;
+        description = "Welcome bonus awarded on account registration";
+      } else if (rawType.includes("ORDER_EARNED") || rawType.includes("EARN")) {
+        txType = "order_earned";
+        totalEarned += amt;
+        const parts = txKey.split("-");
+        if (parts.length >= 3 && parts[0] === "ORD") {
+          orderRef = parts.slice(2).join("-");
         }
+        description = orderRef
+          ? `Earned from Order #${orderRef}`
+          : "Earned from completed coffee order";
+      } else {
+        totalEarned += amt;
       }
 
-      const reconciled = Math.max(0, ledgerTotal);
+      transactions.push({
+        id: String(tx.id || ""),
+        transaction_ref: String(tx.payment_ref || tx.id || ""),
+        transaction_type: txType,
+        points: amt,
+        signed_points: signed,
+        order_reference: orderRef,
+        description,
+        created_at: String(tx.created_at || ""),
+      });
+    }
+
+    transactions.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+
+    if (transactions.length > 0) {
+      const reconciled = Math.max(0, totalEarned - totalRedeemed);
       if (canonicalUser && reconciled !== currentPoints) {
         try {
           await airtableUpdate("Users", canonicalUser.id, { loyalty_points: reconciled });
         } catch {
-          // ignore
+          // Non-blocking sync
         }
       }
-      return reconciled;
+      return {
+        balance: reconciled,
+        total_earned: totalEarned,
+        total_redeemed: totalRedeemed,
+        transactions,
+      };
     }
   } catch (ledgerErr) {
     console.warn("Ledger reconciliation notice:", ledgerErr);
   }
 
-  // If no transactions found yet, ensure user at least has welcome 25 points if new
-  if (currentPoints === 0 && canonicalUser) {
-    try {
-      await airtableUpdate("Users", canonicalUser.id, { loyalty_points: 25 });
-      currentPoints = 25;
-    } catch {
-      // ignore
-    }
-  }
+  // Legacy customer without ledger rows yet — preserve existing balance truthfully
+  return {
+    balance: Math.max(0, currentPoints),
+    total_earned: Math.max(0, currentPoints),
+    total_redeemed: 0,
+    transactions: [],
+  };
+}
 
-  return currentPoints;
+/**
+ * Reconciles the customer's loyalty balance against the Payments ledger.
+ */
+export async function reconcileCustomerLoyalty(
+  customerId: string,
+  customerEmail: string
+): Promise<number> {
+  const summary = await getCustomerLoyaltySummary(customerId, customerEmail);
+  return summary.balance;
 }
 
 /**

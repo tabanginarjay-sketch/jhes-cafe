@@ -10,7 +10,12 @@ import {
   getAuthenticatedUser,
   sanitizeNumericPhone,
 } from "@/lib/serverAuth";
-import { recordLoyaltyTransaction, clearCustomerActiveCart, getCanonicalCustomer } from "@/lib/customerPersistence";
+import {
+  recordLoyaltyTransaction,
+  clearCustomerActiveCart,
+  getCanonicalCustomer,
+  reconcileCustomerLoyalty,
+} from "@/lib/customerPersistence";
 
 const PRODUCTS_TABLE = "tblcQD4QoANpq0ytK";
 const ALLOWED_PAYMENT_METHODS = new Set(["gcash", "maya", "card", "cash"]);
@@ -119,6 +124,36 @@ export async function GET(req: NextRequest) {
     records.sort((a: any, b: any) =>
       String(b.created_at || "").localeCompare(String(a.created_at || ""))
     );
+
+    const { searchParams } = new URL(req.url);
+    const includeItems = searchParams.get("include_items") === "true";
+
+    if (includeItems && records.length > 0) {
+      try {
+        const allItems = await airtableList("OrderItems", undefined, true);
+        const itemsByOrderKey = new Map<string, any[]>();
+        for (const item of allItems) {
+          const key = String(item.order_id || "").trim();
+          if (!key) continue;
+          const arr = itemsByOrderKey.get(key) || [];
+          arr.push(item);
+          itemsByOrderKey.set(key, arr);
+        }
+        for (const ord of records) {
+          const byId = itemsByOrderKey.get(String(ord.id)) || [];
+          const byNum = ord.order_number ? itemsByOrderKey.get(String(ord.order_number)) || [] : [];
+          const seen = new Set<string>();
+          ord.items = [...byId, ...byNum].filter((it) => {
+            if (!it.id) return true;
+            if (seen.has(it.id)) return false;
+            seen.add(it.id);
+            return true;
+          });
+        }
+      } catch {
+        // Non-blocking item enrichment
+      }
+    }
 
     return NextResponse.json(records, {
       headers: {
@@ -492,18 +527,22 @@ export async function POST(req: NextRequest) {
 
     // 12. Award loyalty points to authenticated customer record via immutable, idempotent ledger
     const pointsEarned = Math.floor(finalTotal / 50);
-    if (pointsEarned > 0 && verifiedCustomerEmail) {
+    let updatedLoyaltyPoints: number | null = null;
+    if (verifiedCustomerEmail) {
       try {
         const canonicalCust = await getCanonicalCustomer(verifiedCustomerEmail, customerName);
-        await recordLoyaltyTransaction({
-          customerId: canonicalCust.id,
-          orderId: createdOrder.id,
-          orderNumber,
-          points: pointsEarned,
-          type: "order_earned",
-          idempotencyKey: `ORD-${createdOrder.id}-${orderNumber}`,
-          description: `Points earned from order #${orderNumber} (₱${finalTotal})`,
-        });
+        if (pointsEarned > 0) {
+          await recordLoyaltyTransaction({
+            customerId: canonicalCust.id,
+            orderId: createdOrder.id,
+            orderNumber,
+            points: pointsEarned,
+            type: "order_earned",
+            idempotencyKey: `ORD-${createdOrder.id}-${orderNumber}`,
+            description: `Points earned from order #${orderNumber} (₱${finalTotal})`,
+          });
+        }
+        updatedLoyaltyPoints = await reconcileCustomerLoyalty(canonicalCust.id, verifiedCustomerEmail);
       } catch (loyaltyErr) {
         console.warn("Loyalty transaction recording notice:", loyaltyErr);
       }
@@ -530,6 +569,8 @@ export async function POST(req: NextRequest) {
         payment_mode: rawPaymentMethod === "cash" ? "counter_cash" : "demo_simulated",
         payment: paymentRecord,
         inventory_updates: inventoryUpdates,
+        loyalty_points_earned: pointsEarned,
+        ...(updatedLoyaltyPoints !== null ? { updated_loyalty_points: updatedLoyaltyPoints } : {}),
         items: createdItems.length > 0 ? createdItems : verifiedItems,
       },
       { status: 201 }

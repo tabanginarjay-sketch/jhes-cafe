@@ -46,15 +46,17 @@ export interface UserData {
   id: string;
   full_name: string;
   email: string;
-  phone?: string | null;
+  phone?: string | number | null;
   role: string;
   loyalty_points: number;
-  auth_provider?: "google" | "apple" | "email" | string;
-  avatar_url?: string;
+  auth_provider?: "google" | "apple" | "facebook" | "email" | string;
+  has_password?: boolean;
+  avatar_url?: string | null;
   created_at?: string;
 }
 
 export interface OrderItemData {
+  id?: string;
   product_id?: string;
   product_name: string;
   unit_price: number;
@@ -63,13 +65,15 @@ export interface OrderItemData {
   size?: string;
   temperature?: string;
   milk?: string;
+  milk_type?: string;
+  sweetness?: number;
 }
 
 export interface OrderData {
   id: string;
   order_number: string;
   customer_name: string;
-  customer_phone?: string;
+  customer_phone?: string | number;
   customer_email?: string;
   dining_option: string;
   status: string;
@@ -78,6 +82,7 @@ export interface OrderData {
   payment_method: string;
   special_notes?: string;
   created_at?: string;
+  items?: OrderItemData[];
 }
 
 export async function fetchApiHealth(): Promise<HealthResponse> {
@@ -511,4 +516,53 @@ export async function clearCartApi(): Promise<any> {
     credentials: "include",
   });
   return res.json();
+}
+
+export interface CustomerLoyaltySummaryResponse {
+  customer_id: string;
+  balance: number;
+  total_earned: number;
+  total_redeemed: number;
+  transactions: Array<{
+    id: string;
+    transaction_ref: string;
+    transaction_type: "signup_bonus" | "order_earned" | "redemption" | "adjustment";
+    points: number;
+    signed_points: number;
+    order_reference: string | null;
+    description: string;
+    created_at: string;
+  }>;
+}
+
+export async function fetchMyLoyaltyApi(): Promise<CustomerLoyaltySummaryResponse> {
+  const res = await fetch(`${API_BASE_URL}/account/loyalty`, {
+    headers: { Accept: "application/json" },
+    credentials: "include",
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Unable to retrieve loyalty balance.");
+  }
+  return res.json();
+}
+
+export async function updateMyProfileApi(payload: {
+  full_name?: string;
+  phone?: string;
+  current_password?: string;
+  new_password?: string;
+}): Promise<{ user: UserData; password_updated?: boolean; message: string }> {
+  const res = await fetch(`${API_BASE_URL}/auth/me`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.detail || "Failed to update account profile.");
+  }
+  return data;
 }

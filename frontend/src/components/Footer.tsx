@@ -69,22 +69,32 @@ export function Footer() {
               </li>
               <li>
                 <Link href="/menu" className="hover:text-[#C9AE8B] transition-colors">
-                  Specialty Menu
+                  Menu
+                </Link>
+              </li>
+              <li>
+                <Link href="/my-orders" className="hover:text-[#C9AE8B] transition-colors">
+                  My Orders
                 </Link>
               </li>
               <li>
                 <Link href="/our-cafe" className="hover:text-[#C9AE8B] transition-colors">
-                  Our Space &amp; Ambience
+                  Our Space
                 </Link>
               </li>
               <li>
                 <Link href="/our-story" className="hover:text-[#C9AE8B] transition-colors">
-                  Our Coffee Story
+                  Our Story
                 </Link>
               </li>
               <li>
-                <Link href="/track-order" className="hover:text-[#C9AE8B] transition-colors">
-                  Track Your Order
+                <Link href="/contact" className="hover:text-[#C9AE8B] transition-colors">
+                  Find Us
+                </Link>
+              </li>
+              <li>
+                <Link href="/account" className="hover:text-[#C9AE8B] transition-colors">
+                  My Account
                 </Link>
               </li>
             </ul>

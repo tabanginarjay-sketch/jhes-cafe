@@ -121,7 +121,7 @@ export function TableBookingSection({
         guests: Number(guests) || 2,
         customer_name: user.full_name || "Guest Customer",
         customer_email: user.email || "guest@jhescafe.com",
-        customer_phone: user.phone || undefined,
+        customer_phone: user.phone ? String(user.phone) : undefined,
         special_requests: specialRequest.trim() || undefined,
       };
 

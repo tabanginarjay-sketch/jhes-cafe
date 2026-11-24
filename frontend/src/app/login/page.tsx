@@ -16,7 +16,7 @@ declare global {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTarget = searchParams.get("redirect") || "/order";
+  const redirectTarget = searchParams.get("redirect") || "/account";
   const { loginWithEmail, loginWithGoogle, loginWithGoogleCode } = useAuth();
 
   const [email, setEmail] = useState("");

@@ -21,14 +21,14 @@ function GoogleCallbackContent() {
     // If user is already authenticated, redirect smoothly immediately
     if (isAuthenticated || user) {
       const state = searchParams.get("state");
-      let target = "/order";
+      let target = "/account";
       if (state) {
         try {
           let decoded = decodeURIComponent(state);
           if (decoded.startsWith("%")) decoded = decodeURIComponent(decoded);
           if (decoded.startsWith("/") && !decoded.startsWith("//")) target = decoded;
         } catch {
-          target = "/order";
+          target = "/account";
         }
       }
       setStatus("success");
@@ -44,7 +44,7 @@ function GoogleCallbackContent() {
     const errorDescription = searchParams.get("error_description");
 
     // Cleanly sanitize target redirect URL
-    let targetUrl = "/order";
+    let targetUrl = "/account";
     if (state) {
       try {
         let decoded = decodeURIComponent(state);
@@ -55,7 +55,7 @@ function GoogleCallbackContent() {
           targetUrl = decoded;
         }
       } catch {
-        targetUrl = "/order";
+        targetUrl = "/account";
       }
     }
 

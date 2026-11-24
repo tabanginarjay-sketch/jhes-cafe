@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 function GoogleAuthRedirect() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTarget = searchParams.get("redirect") || "/order";
+  const redirectTarget = searchParams.get("redirect") || "/account";
 
   useEffect(() => {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;

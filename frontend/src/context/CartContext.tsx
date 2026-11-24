@@ -81,6 +81,10 @@ interface CartContextType {
   dismissLoginModal: () => void;
   clearPendingAuthItem: () => void;
 
+  // Promo Code shared seamlessly between Cart & Checkout
+  appliedPromoCode: string | null;
+  setAppliedPromoCode: (code: string | null) => void;
+
   // Toast feedback
   toastMessage: string | null;
 }
@@ -88,6 +92,7 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 const PENDING_CART_STORAGE_KEY = "jhes_pending_cart_item";
+const PROMO_STORAGE_KEY = "jhes_cafe_promo_code";
 const PENDING_CART_TTL_MS = 30 * 60 * 1000;
 const LEGACY_CART_KEYS = ["jhes_cafe_cart", "brew_and_co_cart"];
 
@@ -297,6 +302,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   // Curved Product-Image-to-Cart Flight State
   const [activeFlight, setActiveFlight] = useState<FlightPayload | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [appliedPromoCode, setAppliedPromoCodeState] = useState<string | null>(null);
+
+  const setAppliedPromoCode = useCallback((code: string | null) => {
+    const clean = code ? code.trim().toUpperCase() : null;
+    setAppliedPromoCodeState(clean);
+    try {
+      if (clean) {
+        sessionStorage.setItem(PROMO_STORAGE_KEY, clean);
+      } else {
+        sessionStorage.removeItem(PROMO_STORAGE_KEY);
+      }
+    } catch {
+      // Ignore storage errors
+    }
+  }, []);
 
   const isAddingRef = useRef(false);
   const hydratedUserIdRef = useRef<string | null>(null);
@@ -371,10 +391,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       // Protect customer cart data immediately when logged out / guest
       hydratedUserIdRef.current = null;
       setItems([]);
+      setAppliedPromoCodeState(null);
       setIsCartOpen(false);
       setActiveEditItem(null);
+      try {
+        sessionStorage.removeItem(PROMO_STORAGE_KEY);
+      } catch {}
       return;
     }
+
+    try {
+      const savedPromo = sessionStorage.getItem(PROMO_STORAGE_KEY);
+      if (savedPromo) setAppliedPromoCodeState(savedPromo);
+    } catch {}
 
     let isCancelled = false;
 
@@ -633,6 +662,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const clearCart = () => {
     setItems([]);
+    setAppliedPromoCode(null);
     try {
       if (user) {
         localStorage.removeItem(getAccountCartKey(user.id));
@@ -672,6 +702,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         pendingAuthItem,
         dismissLoginModal,
         clearPendingAuthItem,
+        appliedPromoCode,
+        setAppliedPromoCode,
         toastMessage,
       }}
     >
