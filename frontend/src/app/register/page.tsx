@@ -22,7 +22,11 @@ import type { UserData } from "@/lib/api";
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTarget = searchParams.get("redirect") || "/account";
+  const rawRedirect = searchParams.get("redirect");
+  const redirectTarget =
+    rawRedirect && rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
+      ? rawRedirect
+      : "/";
 
   const { registerWithEmail } = useAuth();
 
@@ -75,7 +79,7 @@ function RegisterForm() {
 
       setRegisteredUser(created);
 
-      // Auto-redirect to target page or account after celebration
+      // Auto-redirect to target page or home after celebration
       setTimeout(() => {
         router.push(redirectTarget);
       }, 1600);
@@ -130,9 +134,13 @@ function RegisterForm() {
                     ? "Checkout"
                     : redirectTarget === "/my-orders"
                       ? "My Orders"
-                      : redirectTarget === "/our-cafe"
-                        ? "Table Booking"
-                        : "My Account"}
+                      : redirectTarget === "/account"
+                        ? "My Account"
+                        : redirectTarget === "/our-cafe"
+                          ? "Table Booking"
+                          : redirectTarget.startsWith("/menu")
+                            ? "Menu"
+                            : "Home"}
                 </span>
                 <ArrowRight className="w-4 h-4 text-[#C9AE8B]" />
               </Link>
@@ -312,7 +320,7 @@ function RegisterForm() {
             <div className="pt-4 border-t border-[#E5DACB] text-center text-xs text-[#573B2C]">
               Already have an account?{" "}
               <Link
-                href={redirectTarget ? `/login?redirect=${encodeURIComponent(redirectTarget)}` : "/login"}
+                href={rawRedirect ? `/login?redirect=${encodeURIComponent(redirectTarget)}` : "/login"}
                 className="font-bold text-[#173D2B] hover:text-[#315640] underline underline-offset-2 ml-1"
               >
                 Sign In here

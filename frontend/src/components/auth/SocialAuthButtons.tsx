@@ -13,7 +13,7 @@ interface SocialAuthButtonsProps {
 
 export function SocialAuthButtons({
   mode,
-  redirectTarget = "/account",
+  redirectTarget = "/",
   className = "",
 }: SocialAuthButtonsProps) {
   const router = useRouter();

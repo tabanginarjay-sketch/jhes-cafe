@@ -16,7 +16,11 @@ declare global {
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTarget = searchParams.get("redirect") || "/account";
+  const rawRedirect = searchParams.get("redirect");
+  const redirectTarget =
+    rawRedirect && rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
+      ? rawRedirect
+      : "/";
   const { loginWithEmail, loginWithGoogle, loginWithGoogleCode } = useAuth();
 
   const [email, setEmail] = useState("");
@@ -403,7 +407,7 @@ function LoginForm() {
                 Don&apos;t have an account?{" "}
                 <Link
                   href={
-                    redirectTarget
+                    rawRedirect
                       ? `/register?redirect=${encodeURIComponent(redirectTarget)}`
                       : "/register"
                   }

@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 function FacebookAuthRedirect() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTarget = searchParams.get("redirect") || "/account";
+  const redirectTarget = searchParams.get("redirect") || "/";
 
   useEffect(() => {
     const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;

@@ -20,14 +20,14 @@ function FacebookCallbackContent() {
     // If user is already authenticated, redirect smoothly immediately
     if (isAuthenticated || user) {
       const state = searchParams.get("state");
-      let target = "/account";
+      let target = "/";
       if (state) {
         try {
           let decoded = decodeURIComponent(state);
           if (decoded.startsWith("%")) decoded = decodeURIComponent(decoded);
           if (decoded.startsWith("/") && !decoded.startsWith("//")) target = decoded;
         } catch {
-          target = "/account";
+          target = "/";
         }
       }
       setStatus("success");
@@ -43,14 +43,14 @@ function FacebookCallbackContent() {
     const errorDescription = searchParams.get("error_description");
 
     // Cleanly sanitize target redirect URL
-    let targetUrl = "/account";
+    let targetUrl = "/";
     if (state) {
       try {
         let decoded = decodeURIComponent(state);
         if (decoded.startsWith("%")) decoded = decodeURIComponent(decoded);
         if (decoded.startsWith("/") && !decoded.startsWith("//")) targetUrl = decoded;
       } catch {
-        targetUrl = "/account";
+        targetUrl = "/";
       }
     }
 
