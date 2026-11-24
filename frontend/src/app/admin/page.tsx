@@ -19,6 +19,7 @@ export default function AdminDashboardPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
+  const [paymentStats, setPaymentStats] = useState<{ total_collected: number; pending_amount: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,15 +27,20 @@ export default function AdminDashboardPage() {
     try {
       setLoading(true);
       setError(null);
-      const [ordRes, prodRes, invRes] = await Promise.all([
+      const [ordRes, prodRes, invRes, payRes] = await Promise.all([
         fetch(`${API_BASE_URL}/orders`, { credentials: "include", cache: "no-store" }),
         fetch(`${API_BASE_URL}/catalog/products`, { credentials: "include", cache: "no-store" }),
         fetch(`${API_BASE_URL}/inventory`, { credentials: "include", cache: "no-store" }),
+        fetch(`${API_BASE_URL}/payments?include_meta=true`, { credentials: "include", cache: "no-store" }),
       ]);
 
       if (ordRes.ok) setOrders(await ordRes.json());
       if (prodRes.ok) setProducts(await prodRes.json());
       if (invRes.ok) setInventory(await invRes.json());
+      if (payRes.ok) {
+        const payData = await payRes.json();
+        if (payData?.stats) setPaymentStats(payData.stats);
+      }
 
       if (!ordRes.ok || !prodRes.ok || !invRes.ok) {
         setError("One or more Airtable data feeds returned an error. Click Refresh to retry.");
@@ -51,9 +57,11 @@ export default function AdminDashboardPage() {
   }, []);
 
   const totalSales = orders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
-  const paidSales = orders
-    .filter((o) => String(o.payment_status || "").toLowerCase() === "paid")
-    .reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+  const paidSales = paymentStats
+    ? paymentStats.total_collected
+    : orders
+        .filter((o) => String(o.payment_status || "").trim().toLowerCase() === "paid")
+        .reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
   const orderCount = orders.length;
   const activeProducts = products.filter((p) => p.is_available !== false).length;
   const lowStockItems = inventory.filter(

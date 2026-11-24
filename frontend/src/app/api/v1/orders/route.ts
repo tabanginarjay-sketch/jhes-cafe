@@ -102,7 +102,20 @@ export async function GET(req: NextRequest) {
       formula = `LOWER({customer_email}) = '${safeEmail}'`;
     }
 
-    const records = await airtableList("Orders", formula, true);
+    const rawRecords = await airtableList("Orders", formula, true);
+    // Strictly exclude persisted active shopping cart drafts (status='cart' / 'cart_cleared' / 'CART-*')
+    const records = rawRecords
+      .filter((r: any) => {
+        const st = String(r.status || "").toLowerCase().trim();
+        const paySt = String(r.payment_status || "").toLowerCase().trim();
+        const ordNum = String(r.order_number || "").toUpperCase().trim();
+        return st !== "cart" && st !== "cart_cleared" && paySt !== "cart" && !ordNum.startsWith("CART-");
+      })
+      .map((r: any) => ({
+        ...r,
+        status: r.status ? String(r.status).trim() : "pending",
+        payment_status: r.payment_status ? String(r.payment_status).trim() : "pending",
+      }));
     records.sort((a: any, b: any) =>
       String(b.created_at || "").localeCompare(String(a.created_at || ""))
     );

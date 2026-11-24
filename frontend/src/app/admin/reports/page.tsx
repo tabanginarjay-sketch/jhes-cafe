@@ -7,6 +7,11 @@ import { RefreshCw } from "lucide-react";
 export default function AdminReportsPage() {
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [orderItems, setOrderItems] = useState<any[]>([]);
+  const [paymentStats, setPaymentStats] = useState<{
+    total_collected: number;
+    pending_amount: number;
+    refunded_amount: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,12 +19,17 @@ export default function AdminReportsPage() {
     try {
       setLoading(true);
       setError(null);
-      const [ordRes, itemsRes] = await Promise.all([
+      const [ordRes, itemsRes, payRes] = await Promise.all([
         fetch(`${API_BASE_URL}/orders`, { credentials: "include", cache: "no-store" }),
         fetch(`${API_BASE_URL}/orders/items`, { credentials: "include", cache: "no-store" }),
+        fetch(`${API_BASE_URL}/payments?include_meta=true`, { credentials: "include", cache: "no-store" }),
       ]);
       if (ordRes.ok) setOrders(await ordRes.json());
       if (itemsRes.ok) setOrderItems(await itemsRes.json());
+      if (payRes.ok) {
+        const payData = await payRes.json();
+        if (payData?.stats) setPaymentStats(payData.stats);
+      }
       if (!ordRes.ok) setError("Could not fetch Airtable orders for reporting.");
     } catch {
       setError("Unable to reach sales analytics API.");
@@ -33,15 +43,23 @@ export default function AdminReportsPage() {
   }, []);
 
   const validOrders = useMemo(
-    () => orders.filter((o) => String(o.status || "").toLowerCase() !== "cancelled"),
+    () =>
+      orders.filter((o) => {
+        const st = String(o.status || "").trim().toLowerCase();
+        return st !== "cancelled" && st !== "cart" && st !== "cart_cleared";
+      }),
     [orders]
   );
 
   const totalRevenue = validOrders.reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
-  const paidRevenue = validOrders
-    .filter((o) => String(o.payment_status || "").toLowerCase() === "paid")
-    .reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
-  const pendingRevenue = Math.max(0, totalRevenue - paidRevenue);
+  const paidRevenue = paymentStats
+    ? paymentStats.total_collected
+    : validOrders
+        .filter((o) => String(o.payment_status || "").trim().toLowerCase() === "paid")
+        .reduce((sum, o) => sum + (Number(o.total_amount) || 0), 0);
+  const pendingRevenue = paymentStats
+    ? paymentStats.pending_amount
+    : Math.max(0, totalRevenue - paidRevenue);
   const totalCount = validOrders.length;
   const avgTicket = totalCount > 0 ? Math.round((totalRevenue / totalCount) * 100) / 100 : 0;
 

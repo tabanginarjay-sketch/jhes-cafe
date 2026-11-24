@@ -12,6 +12,7 @@ import {
   Users,
   BadgeCheck,
   CreditCard,
+  Award,
   BarChart3,
   Settings,
   ArrowLeft,
@@ -129,6 +130,7 @@ export default function AdminLayout({
     { label: "Customers", href: "/admin/customers", icon: Users },
     { label: "Barista Staff", href: "/admin/staff", icon: BadgeCheck },
     { label: "Payments", href: "/admin/payments", icon: CreditCard },
+    { label: "Loyalty Ledger", href: "/admin/loyalty", icon: Award },
     { label: "Sales Reports", href: "/admin/reports", icon: BarChart3 },
     { label: "Settings", href: "/admin/settings", icon: Settings },
   ];
@@ -276,6 +278,31 @@ export default function AdminLayout({
           </Link>
         </div>
       </header>
+
+      {/* Mobile Admin Module Bar (replaces customer nav cleanly on small screens) */}
+      <nav
+        aria-label="Admin Modules"
+        className="md:hidden bg-white border-b border-[#E5DACB] px-3 py-2.5 overflow-x-auto flex items-center gap-1.5 sticky top-16 z-20"
+      >
+        {navItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all ${
+                isActive
+                  ? "bg-[#173D2B] text-white shadow-xs"
+                  : "bg-[#F5F0E7] text-[#573B2C] hover:text-[#173D2B]"
+              }`}
+            >
+              <Icon className={`w-3.5 h-3.5 ${isActive ? "text-[#C9AE8B]" : "text-[#573B2C]"}`} />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
 
       {/* Admin Body Container */}
       <div className="flex-1 flex max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 gap-8">

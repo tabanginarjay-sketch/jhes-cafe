@@ -59,7 +59,15 @@ async def list_orders(
             safe_status = status_filter.replace("'", "\\'")
             clauses.append(f"{{status}} = '{safe_status}'")
         formula = f"AND({', '.join(clauses)})" if len(clauses) > 1 else (clauses[0] if clauses else None)
-        return await order_repo.list_all(filter_by_formula=formula)
+        orders = await order_repo.list_all(filter_by_formula=formula)
+        # Strictly exclude persisted active shopping cart drafts from orders list
+        return [
+            o
+            for o in orders
+            if str(o.status or "").strip().lower() not in {"cart", "cart_cleared"}
+            and str(o.payment_status or "").strip().lower() != "cart"
+            and not str(o.order_number or "").strip().upper().startswith("CART-")
+        ]
     except AirtableError as exc:
         raise HTTPException(status_code=exc.status_code or 500, detail=exc.message)
 

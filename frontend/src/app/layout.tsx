@@ -4,11 +4,7 @@ import { Montserrat, Lora } from "next/font/google";
 import "./globals.css";
 import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
-import { CartDrawer } from "@/components/CartDrawer";
-import { ProductCustomizerModal } from "@/components/common/ProductCustomizerModal";
-import { LoginRequiredModal } from "@/components/auth/LoginRequiredModal";
-import { Navbar } from "@/components/Navbar";
-import { Footer } from "@/components/Footer";
+import { StorefrontShell } from "@/components/StorefrontShell";
 
 const montserrat = Montserrat({
   subsets: ["latin"],
@@ -44,14 +40,9 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-[#FFFCF7] text-[#173D2B] font-sans selection:bg-[#315640] selection:text-white">
         <AuthProvider>
           <CartProvider>
-            <Suspense fallback={<div className="h-20 bg-[#FFFCF7] border-b border-[#E5DACB]" />}>
-              <Navbar />
+            <Suspense fallback={<div className="min-h-screen bg-[#FFFCF7]" />}>
+              <StorefrontShell>{children}</StorefrontShell>
             </Suspense>
-            <CartDrawer />
-            <ProductCustomizerModal />
-            <LoginRequiredModal />
-            <div className="flex-1 flex flex-col">{children}</div>
-            <Footer />
           </CartProvider>
         </AuthProvider>
       </body>
