@@ -7,6 +7,7 @@ import {
   verifyPassword,
 } from "@/lib/serverAuth";
 import { serverPasswordStore } from "@/lib/passwordStore";
+import { reconcileCustomerLoyalty } from "@/lib/customerPersistence";
 
 export async function POST(req: NextRequest) {
   try {
@@ -82,13 +83,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const reconciledPoints = await reconcileCustomerLoyalty(user.id, email);
+
     const safeUser = {
       id: user.id,
       full_name: user.full_name || "Customer",
       email,
       phone: user.phone ?? null,
       role: user.role || "customer",
-      loyalty_points: Number(user.loyalty_points) || 0,
+      loyalty_points: reconciledPoints,
       auth_provider: "email",
     };
 

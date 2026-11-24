@@ -8,6 +8,7 @@ import {
   signSessionToken,
 } from "@/lib/serverAuth";
 import { serverPasswordStore } from "@/lib/passwordStore";
+import { recordLoyaltyTransaction } from "@/lib/customerPersistence";
 
 export async function POST(req: NextRequest) {
   try {
@@ -98,6 +99,20 @@ export async function POST(req: NextRequest) {
     } catch {
       // Fallback cleanly to the verified 5 Airtable Users columns
       airtableUser = await airtableCreate("Users", coreFields);
+    }
+
+    // Seed initial signup welcome transaction in ledger
+    try {
+      await recordLoyaltyTransaction({
+        customerId: airtableUser.id,
+        orderNumber: "WELCOME-BONUS",
+        points: 25,
+        type: "signup",
+        idempotencyKey: `SIGNUP-${airtableUser.id}`,
+        description: "Welcome bonus: 25 Bean Points",
+      });
+    } catch {
+      // Non-blocking
     }
 
     const user = {

@@ -363,7 +363,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Hydrate account-scoped cart on login, clear immediately on logout, and auto-add preserved pending item
+  // Hydrate account-scoped cart on login from server + local cache, clear in-memory on logout, and auto-add preserved pending item
   useEffect(() => {
     if (authLoading) return;
 
@@ -376,7 +376,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Load this authenticated customer's persisted cart
+    let isCancelled = false;
+
+    // 1. Instant optimistic load from account cache (zero layout shift)
     const storageKey = getAccountCartKey(user.id);
     let loadedItems: CartItem[] = [];
     try {
@@ -420,12 +422,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       loadedItems = mergeCartItem(loadedItems, completeItem);
       try {
         localStorage.setItem(storageKey, JSON.stringify(loadedItems));
-      } catch {
-        // Ignore storage errors
-      }
+      } catch {}
 
       hydratedUserIdRef.current = user.id;
       setItems(loadedItems);
+
+      // Persist to server
+      void fetch("/api/v1/cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: loadedItems }),
+      }).catch(() => {});
 
       // Animate from the visible product image on the return page once settled
       setTimeout(() => {
@@ -452,10 +459,38 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     } else {
       hydratedUserIdRef.current = user.id;
       setItems(loadedItems);
+
+      // 2. Authoritative server hydration from Airtable Orders cart record
+      void fetch("/api/v1/cart")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (isCancelled || !data) return;
+          if (Array.isArray(data.items)) {
+            // If server has items, adopt authoritative server cart
+            if (data.items.length > 0) {
+              setItems(data.items);
+              try {
+                localStorage.setItem(storageKey, JSON.stringify(data.items));
+              } catch {}
+            } else if (loadedItems.length > 0) {
+              // Push local items to server if server was fresh
+              void fetch("/api/v1/cart", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ items: loadedItems }),
+              }).catch(() => {});
+            }
+          }
+        })
+        .catch(() => {});
     }
+
+    return () => {
+      isCancelled = true;
+    };
   }, [user, authLoading, launchProductToCartAnimation, showToast]);
 
-  // Persist account-scoped cart whenever items change for an authenticated user
+  // Persist account-scoped cart whenever items change for an authenticated user to both cache and server
   useEffect(() => {
     if (!user || hydratedUserIdRef.current !== user.id) return;
     try {
@@ -463,6 +498,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Ignore storage errors
     }
+
+    const timer = setTimeout(() => {
+      void fetch("/api/v1/cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      }).catch(() => {});
+    }, 400);
+
+    return () => clearTimeout(timer);
   }, [items, user]);
 
   const dismissLoginModal = useCallback(() => {
@@ -591,6 +636,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     try {
       if (user) {
         localStorage.removeItem(getAccountCartKey(user.id));
+        void fetch("/api/v1/cart", { method: "DELETE" }).catch(() => {});
       }
       LEGACY_CART_KEYS.forEach((key) => localStorage.removeItem(key));
     } catch {

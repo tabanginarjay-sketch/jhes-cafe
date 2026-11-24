@@ -5,6 +5,7 @@ import {
   escapeFormulaString,
   signSessionToken,
 } from "@/lib/serverAuth";
+import { getCanonicalCustomer, reconcileCustomerLoyalty } from "@/lib/customerPersistence";
 
 const FB_APP_ID = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || "";
 const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET || "";
@@ -98,48 +99,19 @@ export async function POST(req: NextRequest) {
     // Email fallback: If Facebook account didn't share an email, generate deterministic alias
     const customerEmail = verifiedEmail || `fb_${fbId}@jhescafe.ph`;
 
-    // 3. Lookup or Create User in Airtable (strictly customer role on public registration)
-    let user: any = null;
-    try {
-      const safeEmail = escapeFormulaString(customerEmail);
-      const existing = await airtableList("Users", `LOWER({email}) = '${safeEmail}'`, true);
-      if (existing.length > 0) {
-        user = existing[0];
-      } else {
-        try {
-          user = await airtableCreate("Users", {
-            full_name: verifiedName,
-            email: customerEmail,
-            role: "customer",
-            loyalty_points: 25,
-          });
-        } catch {
-          user = {
-            id: `fb-${fbId.slice(0, 10)}`,
-            full_name: verifiedName,
-            email: customerEmail,
-            role: "customer",
-            loyalty_points: 25,
-            auth_provider: "facebook",
-            avatar_url: avatarUrl,
-          };
-        }
-      }
-    } catch {
-      user = {
-        id: `fb-${fbId.slice(0, 10)}`,
-        full_name: verifiedName,
-        email: customerEmail,
-        role: "customer",
-        loyalty_points: 25,
-        auth_provider: "facebook",
-        avatar_url: avatarUrl,
-      };
-    }
+    // 3. Resolve canonical customer in Airtable
+    const canonical = await getCanonicalCustomer(
+      customerEmail,
+      verifiedName,
+      null,
+      "facebook",
+      avatarUrl
+    );
 
-    const userId = user.id || `fb-${fbId.slice(0, 10)}`;
-    const fullName = user.full_name || verifiedName;
-    const userRole = user.role || "customer";
+    const userId = canonical.id;
+    const fullName = canonical.full_name || verifiedName;
+    const userRole = canonical.role || "customer";
+    const reconciledPoints = await reconcileCustomerLoyalty(canonical.id, customerEmail);
 
     // 4. Issue HMAC-signed session token
     const token = signSessionToken({
@@ -159,7 +131,7 @@ export async function POST(req: NextRequest) {
         full_name: fullName,
         email: customerEmail,
         role: userRole,
-        loyalty_points: Number(user.loyalty_points) || 25,
+        loyalty_points: reconciledPoints,
         auth_provider: "facebook",
         avatar_url: avatarUrl,
       },

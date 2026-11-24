@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { airtableList } from "@/lib/airtable";
-import { escapeFormulaString, getAuthenticatedUser } from "@/lib/serverAuth";
+import { getAuthenticatedUser } from "@/lib/serverAuth";
+import { getCanonicalCustomer, reconcileCustomerLoyalty } from "@/lib/customerPersistence";
 
 export async function GET(req: NextRequest) {
   try {
@@ -43,36 +43,28 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Refresh live loyalty points and profile details from Airtable
-    let loyaltyPoints = 25;
-    let role = session.role || "customer";
-    let fullName = session.name || "Customer";
-    let phone: string | number | null = null;
+    // Retrieve canonical customer record to guarantee permanent ID and prevent duplicate email fragmentation
+    const canonical = await getCanonicalCustomer(
+      session.email,
+      session.name,
+      null,
+      session.auth_provider || "email",
+      session.avatar_url
+    );
 
-    try {
-      const safeEmail = escapeFormulaString(session.email.toLowerCase().trim());
-      const matches = await airtableList("Users", `LOWER({email}) = '${safeEmail}'`, true);
-      if (matches.length > 0) {
-        const live: any = matches[0];
-        loyaltyPoints = Number(live.loyalty_points) || 0;
-        role = String(live.role || role);
-        fullName = String(live.full_name || fullName);
-        phone = live.phone ?? null;
-      }
-    } catch {
-      // Keep verified session claims if Airtable temporarily unreachable
-    }
+    // Reconcile live loyalty balance from transaction ledger
+    const reconciledPoints = await reconcileCustomerLoyalty(canonical.id, session.email);
 
     return NextResponse.json(
       {
-        id: session.sub,
-        full_name: fullName,
-        email: session.email,
-        phone,
-        role,
-        loyalty_points: loyaltyPoints,
-        auth_provider: session.auth_provider || "email",
-        avatar_url: session.avatar_url || null,
+        id: canonical.id,
+        full_name: canonical.full_name,
+        email: canonical.email,
+        phone: canonical.phone ?? null,
+        role: canonical.role || session.role || "customer",
+        loyalty_points: reconciledPoints,
+        auth_provider: canonical.auth_provider || session.auth_provider || "email",
+        avatar_url: canonical.avatar_url || session.avatar_url || null,
       },
       { headers: { "Cache-Control": "no-store" } }
     );

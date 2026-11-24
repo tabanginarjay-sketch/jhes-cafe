@@ -10,6 +10,7 @@ import {
   getAuthenticatedUser,
   sanitizeNumericPhone,
 } from "@/lib/serverAuth";
+import { recordLoyaltyTransaction, clearCustomerActiveCart, getCanonicalCustomer } from "@/lib/customerPersistence";
 
 const PRODUCTS_TABLE = "tblcQD4QoANpq0ytK";
 const ALLOWED_PAYMENT_METHODS = new Set(["gcash", "maya", "card", "cash"]);
@@ -476,21 +477,31 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 12. Award loyalty points to authenticated customer record in Airtable Users
+    // 12. Award loyalty points to authenticated customer record via immutable, idempotent ledger
     const pointsEarned = Math.floor(finalTotal / 50);
     if (pointsEarned > 0 && verifiedCustomerEmail) {
       try {
-        const safeEmail = escapeFormulaString(verifiedCustomerEmail);
-        const userMatches = await airtableList("Users", `LOWER({email}) = '${safeEmail}'`, true);
-        if (userMatches.length > 0) {
-          const cust: any = userMatches[0];
-          const currentPts = Number(cust.loyalty_points) || 0;
-          await airtableUpdate("Users", cust.id, {
-            loyalty_points: currentPts + pointsEarned,
-          });
-        }
+        const canonicalCust = await getCanonicalCustomer(verifiedCustomerEmail, customerName);
+        await recordLoyaltyTransaction({
+          customerId: canonicalCust.id,
+          orderId: createdOrder.id,
+          orderNumber,
+          points: pointsEarned,
+          type: "order_earned",
+          idempotencyKey: `ORD-${createdOrder.id}-${orderNumber}`,
+          description: `Points earned from order #${orderNumber} (₱${finalTotal})`,
+        });
+      } catch (loyaltyErr) {
+        console.warn("Loyalty transaction recording notice:", loyaltyErr);
+      }
+    }
+
+    // 13. Automatically clear the customer's persistent active cart in Airtable upon order placement
+    if (verifiedCustomerEmail) {
+      try {
+        await clearCustomerActiveCart(verifiedCustomerEmail);
       } catch {
-        // Non-blocking loyalty update
+        // Non-blocking cart cleanup
       }
     }
 

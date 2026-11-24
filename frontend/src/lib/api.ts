@@ -479,3 +479,36 @@ export async function authForgotPassword(email: string): Promise<{ message: stri
   });
   return response.json();
 }
+
+export async function fetchCartApi(): Promise<{ items: any[]; total_count: number; subtotal: number } | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/cart`, {
+      headers: { Accept: "application/json" },
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+export async function saveCartApi(items: any[]): Promise<any> {
+  const res = await fetch(`${API_BASE_URL}/cart`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ items }),
+  });
+  return res.json();
+}
+
+export async function clearCartApi(): Promise<any> {
+  const res = await fetch(`${API_BASE_URL}/cart`, {
+    method: "DELETE",
+    headers: { Accept: "application/json" },
+    credentials: "include",
+  });
+  return res.json();
+}

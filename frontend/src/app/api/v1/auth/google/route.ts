@@ -5,6 +5,7 @@ import {
   escapeFormulaString,
   signSessionToken,
 } from "@/lib/serverAuth";
+import { getCanonicalCustomer, reconcileCustomerLoyalty } from "@/lib/customerPersistence";
 
 export async function POST(req: NextRequest) {
   try {
@@ -191,50 +192,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Lookup or register in Airtable (strictly customer role on public registration)
-    let user: any = null;
-    try {
-      const safeEmail = escapeFormulaString(verifiedEmail);
-      const existing = await airtableList("Users", `LOWER({email}) = '${safeEmail}'`, true);
-      if (existing.length > 0) {
-        user = existing[0];
-      } else {
-        try {
-          user = await airtableCreate("Users", {
-            full_name: verifiedName,
-            email: verifiedEmail,
-            role: "customer",
-            loyalty_points: 25,
-          });
-        } catch {
-          user = {
-            id: `google-${sub.slice(0, 10)}`,
-            full_name: verifiedName,
-            email: verifiedEmail,
-            role: "customer",
-            loyalty_points: 25,
-            auth_provider: "google",
-            avatar_url: picture,
-          };
-        }
-      }
-    } catch {
-      user = {
-        id: `google-${sub.slice(0, 10)}`,
-        full_name: verifiedName,
-        email: verifiedEmail,
-        role: "customer",
-        loyalty_points: 25,
-        auth_provider: "google",
-        avatar_url: picture,
-      };
-    }
+    // Resolve or link canonical customer record in Airtable (deduplicating and establishing stable customer_id)
+    const canonical = await getCanonicalCustomer(
+      verifiedEmail,
+      verifiedName,
+      null,
+      "google",
+      picture
+    );
 
-    const userId = user.id || `google-${sub.slice(0, 10)}`;
-    const fullName = user.full_name || verifiedName;
-    const userRole = user.role || "customer";
+    const userId = canonical.id;
+    const fullName = canonical.full_name || verifiedName;
+    const userRole = canonical.role || "customer";
+    const reconciledPoints = await reconcileCustomerLoyalty(canonical.id, verifiedEmail);
 
-    // Issue HMAC-signed session token
+    // Issue HMAC-signed session token with stable customer_id
     const token = signSessionToken({
       sub: userId,
       email: verifiedEmail,
@@ -252,7 +224,7 @@ export async function POST(req: NextRequest) {
         full_name: fullName,
         email: verifiedEmail,
         role: userRole,
-        loyalty_points: Number(user.loyalty_points) || 25,
+        loyalty_points: reconciledPoints,
         auth_provider: "google",
         avatar_url: picture,
       },
