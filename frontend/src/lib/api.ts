@@ -1,3 +1,5 @@
+import type { DeliveryRecord } from "@/lib/deliveryTypes";
+
 /**
  * Environment-based API client configuration for Jhe's Cafe'.
  * Never targets localhost:8000 in production builds or deployed browsers.
@@ -78,11 +80,13 @@ export interface OrderData {
   dining_option: string;
   status: string;
   total_amount: number;
+  delivery_fee?: number;
   payment_status: string;
   payment_method: string;
   special_notes?: string;
   created_at?: string;
   items?: OrderItemData[];
+  delivery?: DeliveryRecord | null;
 }
 
 export async function fetchApiHealth(): Promise<HealthResponse> {

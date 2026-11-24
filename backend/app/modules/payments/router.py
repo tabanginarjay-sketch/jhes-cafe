@@ -18,6 +18,7 @@ from app.modules.payments.repository import (
     encode_transaction_field,
     is_auth_credential_record,
     is_cart_record,
+    is_delivery_system_record,
     is_loyalty_record,
     is_refund_record,
     normalize_payment_status,
@@ -145,7 +146,13 @@ async def update_payment_status(
     except AirtableNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Payment '{payment_id}' not found.")
 
-    if is_loyalty_record(existing) or is_refund_record(existing) or is_cart_record(existing) or is_auth_credential_record(existing):
+    if (
+        is_loyalty_record(existing)
+        or is_refund_record(existing)
+        or is_cart_record(existing)
+        or is_auth_credential_record(existing)
+        or is_delivery_system_record(existing)
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only genuine customer order payment records may be transitioned via this endpoint.",

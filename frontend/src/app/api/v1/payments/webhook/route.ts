@@ -6,6 +6,7 @@ import {
   encodeTransactionField,
   isAuthCredentialRecord,
   isCartRecord,
+  isDeliverySystemRecord,
   isLoyaltyRecord,
   isRefundRecord,
   normalizePaymentStatus,
@@ -81,7 +82,11 @@ export async function POST(req: NextRequest) {
       payment =
         matches.find(
           (m: any) =>
-            !isLoyaltyRecord(m) && !isRefundRecord(m) && !isCartRecord(m) && !isAuthCredentialRecord(m)
+            !isLoyaltyRecord(m) &&
+            !isRefundRecord(m) &&
+            !isCartRecord(m) &&
+            !isAuthCredentialRecord(m) &&
+            !isDeliverySystemRecord(m)
         ) || null;
     }
 
@@ -90,7 +95,8 @@ export async function POST(req: NextRequest) {
       isLoyaltyRecord(payment) ||
       isRefundRecord(payment) ||
       isCartRecord(payment) ||
-      isAuthCredentialRecord(payment)
+      isAuthCredentialRecord(payment) ||
+      isDeliverySystemRecord(payment)
     ) {
       return NextResponse.json({ detail: "Order payment record not found." }, { status: 404 });
     }

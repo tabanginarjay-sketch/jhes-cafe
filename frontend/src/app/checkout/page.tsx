@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   CheckCircle2,
@@ -8,6 +8,10 @@ import {
   Banknote,
   Utensils,
   ShoppingBag,
+  Truck,
+  MapPin,
+  Clock,
+  Bookmark,
   ArrowRight,
   ArrowLeft,
   Lock,
@@ -26,6 +30,13 @@ import { API_BASE_URL } from "@/lib/api";
 import { BRAND_CONFIG } from "@/lib/brandConfig";
 import { getProductImage } from "@/lib/productRegistry";
 import { SocialAuthButtons } from "@/components/auth/SocialAuthButtons";
+import {
+  formatDeliveryStatusLabel,
+  matchServiceableZone,
+  type CustomerAddress,
+  type DeliveryZone,
+  type DiningPreference,
+} from "@/lib/deliveryTypes";
 
 const SPECIAL_INSTRUCTIONS_LIMIT = 200;
 
@@ -36,9 +47,23 @@ const SEATING_ZONES = [
   "Garden Patio Lounge",
 ];
 
-const PAYMENT_OPTIONS = [
+const PICKUP_TIME_OPTIONS = [
+  "ASAP (10–15 mins)",
+  "In 30 minutes",
+  "In 45 minutes",
+  "In 1 hour",
+];
+
+const DELIVERY_SCHEDULE_WINDOWS = [
+  "Within 1–2 hours",
+  "Lunch Window (12:00 PM – 1:00 PM)",
+  "Afternoon Coffee (3:00 PM – 4:00 PM)",
+  "Evening Drop-off (6:00 PM – 7:00 PM)",
+];
+
+const ONLINE_PAYMENT_OPTIONS = [
   {
-    id: "gcash",
+    id: "gcash" as const,
     label: "GCash",
     modeLabel: "Demo Simulated · Pending Verification",
     description:
@@ -46,7 +71,7 @@ const PAYMENT_OPTIONS = [
     icon: CreditCard,
   },
   {
-    id: "maya",
+    id: "maya" as const,
     label: "Maya",
     modeLabel: "Demo Simulated · Pending Verification",
     description:
@@ -54,24 +79,34 @@ const PAYMENT_OPTIONS = [
     icon: CreditCard,
   },
   {
-    id: "card",
+    id: "card" as const,
     label: "Credit / Debit Card",
     modeLabel: "Demo Simulated · Pending Verification",
     description:
       "Simulated portfolio card checkout. No real card charge occurs; recorded pending verification.",
     icon: CreditCard,
   },
-  {
-    id: "cash",
-    label: "Counter Cash",
-    modeLabel: "Pay at Counter · Cashier Confirmed",
-    description:
-      "Pay in person at the Jhe's Cafe' counter. Confirmed by an authorized cashier upon receipt.",
-    icon: Banknote,
-  },
-] as const;
+];
 
-type PaymentMethodId = (typeof PAYMENT_OPTIONS)[number]["id"];
+const COUNTER_CASH_OPTION = {
+  id: "cash" as const,
+  label: "Counter Cash",
+  modeLabel: "Pay at Counter · Cashier Confirmed",
+  description:
+    "Pay in person at the Jhe's Cafe' counter. Confirmed by an authorized cashier upon receipt.",
+  icon: Banknote,
+};
+
+const COD_PAYMENT_OPTION = {
+  id: "cod" as const,
+  label: "Cash on Delivery (COD)",
+  modeLabel: "COD_PENDING · Confirmed After Delivery",
+  description:
+    "Pay exact cash to our assigned rider upon handoff. Recorded as COD_PENDING until delivery completes and cashier confirms cash remittance.",
+  icon: Banknote,
+};
+
+type PaymentMethodId = "gcash" | "maya" | "card" | "cash" | "cod";
 
 function generateIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -96,10 +131,30 @@ export default function CheckoutPage() {
   const [customerEmail, setCustomerEmail] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
 
-  // Section B — Dining Preference
-  const [diningOption, setDiningOption] = useState<"Dine-in" | "Takeaway">("Takeaway");
+  // Section B — Dining Preference (Dine-in | Takeaway | Delivery)
+  const [diningOption, setDiningOption] = useState<DiningPreference>("Takeaway");
   const [seatingZone, setSeatingZone] = useState(SEATING_ZONES[0]);
   const [tableNumber, setTableNumber] = useState("");
+  const [pickupTimePreference, setPickupTimePreference] = useState(PICKUP_TIME_OPTIONS[0]);
+
+  // Delivery-specific fields & configured serviceable zones (zero hardcoded rates)
+  const [deliveryZones, setDeliveryZones] = useState<DeliveryZone[]>([]);
+  const [zonesLoading, setZonesLoading] = useState(false);
+  const [savedAddresses, setSavedAddresses] = useState<CustomerAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string>("");
+
+  const [recipientName, setRecipientName] = useState("");
+  const [deliveryPhone, setDeliveryPhone] = useState("");
+  const [houseNumber, setHouseNumber] = useState("");
+  const [street, setStreet] = useState("");
+  const [barangay, setBarangay] = useState("");
+  const [city, setCity] = useState("");
+  const [landmark, setLandmark] = useState("");
+  const [deliveryInstructions, setDeliveryInstructions] = useState("");
+  const [scheduleType, setScheduleType] = useState<"asap" | "scheduled">("asap");
+  const [scheduledWindow, setScheduledWindow] = useState(DELIVERY_SCHEDULE_WINDOWS[0]);
+  const [saveAddressForLater, setSaveAddressForLater] = useState(true);
+  const [addressLabel, setAddressLabel] = useState("Home");
 
   // Section C — Special Instructions
   const [notes, setNotes] = useState("");
@@ -107,7 +162,7 @@ export default function CheckoutPage() {
   // Section D — Payment Method
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodId>("cash");
 
-  // Promo code (initialized from CartContext if customer applied one in /cart)
+  // Promo code
   const [promoInput, setPromoInput] = useState("");
   const [promoFeedback, setPromoFeedback] = useState<string | null>(null);
 
@@ -119,13 +174,44 @@ export default function CheckoutPage() {
   const isSubmittingRef = useRef(false);
   const idempotencyKeyRef = useRef<string>(generateIdempotencyKey());
 
-  // Auto-fill Section A contact details from verified authenticated account
+  // Auto-fill contact details & delivery recipient from authenticated account
   useEffect(() => {
     if (user) {
       setCustomerName((prev) => prev || user.full_name || "");
       setCustomerEmail(user.email || "");
-      setCustomerPhone((prev) => prev || (user.phone ? String(user.phone) : ""));
+      const phoneStr = user.phone ? String(user.phone) : "";
+      setCustomerPhone((prev) => prev || phoneStr);
+      setRecipientName((prev) => prev || user.full_name || "");
+      setDeliveryPhone((prev) => prev || phoneStr);
     }
+  }, [user]);
+
+  // Fetch active configured delivery zones & customer saved addresses
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    setZonesLoading(true);
+
+    Promise.all([
+      fetch(`${API_BASE_URL}/delivery/zones`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : { zones: [] }))
+        .catch(() => ({ zones: [] })),
+      fetch(`${API_BASE_URL}/addresses`, { credentials: "include", cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : { addresses: [] }))
+        .catch(() => ({ addresses: [] })),
+    ])
+      .then(([zData, aData]) => {
+        if (!active) return;
+        setDeliveryZones(Array.isArray(zData?.zones) ? zData.zones : []);
+        setSavedAddresses(Array.isArray(aData?.addresses) ? aData.addresses : []);
+      })
+      .finally(() => {
+        if (active) setZonesLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
   }, [user]);
 
   useEffect(() => {
@@ -134,12 +220,60 @@ export default function CheckoutPage() {
     }
   }, [appliedPromoCode]);
 
+  // Switch between COD and Counter Cash cleanly when dining preference changes
+  const handleSelectDining = (next: DiningPreference) => {
+    setDiningOption(next);
+    setError(null);
+    if (next === "Delivery" && paymentMethod === "cash") {
+      setPaymentMethod("cod");
+    } else if (next !== "Delivery" && paymentMethod === "cod") {
+      setPaymentMethod("cash");
+    }
+  };
+
+  const applySavedAddress = (addr: CustomerAddress) => {
+    setSelectedAddressId(addr.id);
+    setRecipientName(addr.recipient_name || customerName);
+    setDeliveryPhone(addr.contact_number || customerPhone);
+    setHouseNumber(addr.house_number);
+    setStreet(addr.street);
+    setBarangay(addr.barangay);
+    setCity(addr.city);
+    setLandmark(addr.landmark);
+    setDeliveryInstructions(addr.delivery_instructions);
+    setAddressLabel(addr.label || "Home");
+    setError(null);
+  };
+
+  const applyQuickZone = (zone: DeliveryZone) => {
+    setCity(zone.city);
+    setBarangay(zone.barangay);
+    setError(null);
+  };
+
+  // Match typed or selected city + barangay strictly against active configured zones
+  const matchedZone = useMemo(() => {
+    if (diningOption !== "Delivery") return null;
+    return matchServiceableZone(deliveryZones, city, barangay);
+  }, [diningOption, deliveryZones, city, barangay]);
+
+  const hasEnteredZoneFields = Boolean(city.trim() && barangay.trim());
+  const isDeliveryBelowMin = Boolean(
+    diningOption === "Delivery" && matchedZone && subtotal < matchedZone.min_order_amount
+  );
+  const deliveryFee = diningOption === "Delivery" && matchedZone ? matchedZone.delivery_fee : 0;
+
   const isPromoApplied = appliedPromoCode === BRAND_CONFIG.promo.code;
   const discountAmount = isPromoApplied
     ? Math.round(subtotal * BRAND_CONFIG.promo.discountRate)
     : 0;
-  const finalTotal = Math.max(0, subtotal - discountAmount);
+  const finalTotal = Math.max(0, subtotal + deliveryFee - discountAmount);
   const pointsToEarn = Math.floor(finalTotal / 50);
+
+  const visiblePaymentOptions =
+    diningOption === "Delivery"
+      ? [COD_PAYMENT_OPTION, ...ONLINE_PAYMENT_OPTIONS]
+      : [...ONLINE_PAYMENT_OPTIONS, COUNTER_CASH_OPTION];
 
   const handleApplyPromo = () => {
     const clean = promoInput.trim().toUpperCase();
@@ -150,7 +284,7 @@ export default function CheckoutPage() {
     }
     if (clean === BRAND_CONFIG.promo.code) {
       setAppliedPromoCode(BRAND_CONFIG.promo.code);
-      setPromoFeedback(`Promo ${BRAND_CONFIG.promo.code} applied (15% off).`);
+      setPromoFeedback(`Promo ${BRAND_CONFIG.promo.code} applied (15% off subtotal).`);
     } else {
       setAppliedPromoCode(null);
       setPromoFeedback(`Unknown promo code "${clean}". Try ${BRAND_CONFIG.promo.code}.`);
@@ -171,11 +305,49 @@ export default function CheckoutPage() {
       return;
     }
 
+    // Strict client-side Delivery pre-validation (authoritatively re-validated on backend!)
+    if (diningOption === "Delivery") {
+      if (recipientName.trim().length < 2) {
+        setError("Please enter the delivery recipient's full name.");
+        return;
+      }
+      if (deliveryPhone.replace(/\D/g, "").length < 7) {
+        setError("Please provide a valid recipient contact number (at least 7 digits).");
+        return;
+      }
+      if (!houseNumber.trim() || !street.trim() || !barangay.trim() || !city.trim()) {
+        setError(
+          "Please complete the delivery address (house/building number, street, barangay, and city)."
+        );
+        return;
+      }
+      if (deliveryZones.length === 0) {
+        setError(
+          "Delivery is currently unavailable because no serviceable delivery zones are configured yet."
+        );
+        return;
+      }
+      if (!matchedZone) {
+        setError(
+          `Sorry, Brgy. ${barangay.trim()}, ${city.trim()} is outside our configured delivery zones. Please select a serviceable area or switch to Takeaway / Dine-in.`
+        );
+        return;
+      }
+      if (subtotal < matchedZone.min_order_amount) {
+        setError(
+          `Minimum order for ${matchedZone.area_label} is ₱${matchedZone.min_order_amount.toFixed(2)} (current subtotal: ₱${subtotal.toFixed(2)}).`
+        );
+        return;
+      }
+    }
+
     isSubmittingRef.current = true;
     setSubmitting(true);
     setError(null);
 
-    const trimmedPhone = customerPhone.trim() || (user.phone ? String(user.phone).trim() : "");
+    const trimmedPhone =
+      (diningOption === "Delivery" ? deliveryPhone.trim() : customerPhone.trim()) ||
+      (user.phone ? String(user.phone).trim() : "");
     const currentIdempotencyKey = idempotencyKeyRef.current;
 
     const payload = {
@@ -190,7 +362,26 @@ export default function CheckoutPage() {
             table_number: tableNumber.trim() || undefined,
             seating_zone: seatingZone,
           }
-        : {}),
+        : diningOption === "Takeaway"
+          ? {
+              pickup_time_preference: pickupTimePreference,
+            }
+          : {
+              delivery_address: {
+                recipient_name: recipientName.trim(),
+                contact_number: deliveryPhone.trim(),
+                house_number: houseNumber.trim(),
+                street: street.trim(),
+                barangay: barangay.trim(),
+                city: city.trim(),
+                landmark: landmark.trim(),
+                delivery_instructions: deliveryInstructions.trim(),
+                schedule_type: scheduleType,
+                scheduled_window: scheduleType === "scheduled" ? scheduledWindow : undefined,
+                save_address: saveAddressForLater,
+                address_label: addressLabel.trim() || "Home",
+              },
+            }),
       payment_method: paymentMethod,
       promo_code: isPromoApplied ? appliedPromoCode : undefined,
       special_notes: notes.trim().slice(0, SPECIAL_INSTRUCTIONS_LIMIT) || undefined,
@@ -243,7 +434,6 @@ export default function CheckoutPage() {
 
       const resJson = await res.json().catch(() => ({}));
       if (!res.ok) {
-        // NEVER display confirmation screen unless backend saved order cleanly
         throw new Error(resJson.detail || "Order could not be saved. Please review and try again.");
       }
 
@@ -260,22 +450,22 @@ export default function CheckoutPage() {
       setConfirmedOrder({
         ...resJson,
         confirmed_subtotal: resJson.subtotal_before_discount ?? subtotal,
+        confirmed_delivery_fee: resJson.delivery_fee ?? deliveryFee,
         confirmed_discount: resJson.discount_amount ?? discountAmount,
         confirmed_total: resJson.total_amount ?? finalTotal,
         confirmed_items: confirmedItems,
         confirmed_zone: diningOption === "Dine-in" ? seatingZone : "",
         confirmed_table: diningOption === "Dine-in" ? tableNumber.trim() : "",
+        confirmed_pickup_time: diningOption === "Takeaway" ? pickupTimePreference : "",
         confirmed_notes: notes.trim(),
         loyalty_points_earned: resJson.loyalty_points_earned ?? pointsToEarn,
       });
 
-      // Immediately sync authoritative loyalty balance across Header & Account
       if (typeof resJson.updated_loyalty_points === "number") {
         updateUserLocally({ loyalty_points: resJson.updated_loyalty_points });
       }
       void refreshUser();
 
-      // Clear cart ONLY after backend confirms order saved
       setNotes("");
       setTableNumber("");
       setPromoInput("");
@@ -301,7 +491,6 @@ export default function CheckoutPage() {
     );
   }
 
-  // Fallback Auth Guard
   if (!user) {
     return (
       <div className="py-16 sm:py-24 bg-[#FFFCF7]">
@@ -315,12 +504,13 @@ export default function CheckoutPage() {
               Sign in to complete checkout
             </h1>
             <p className="text-sm text-[#573B2C] leading-relaxed">
-              Sign in to your Jhe&apos;s Cafe&apos; account so your order, receipt, and Bean Points remain securely tied to you.
+              Sign in to your Jhe&apos;s Cafe&apos; account so your order, delivery tracking, and Bean Points remain securely tied to you.
             </p>
             <SocialAuthButtons mode="signin" redirectTarget="/checkout" />
             <div className="pt-2 flex flex-col sm:flex-row gap-3">
               <Link
                 href="/login?redirect=/checkout"
+                prefetch={false}
                 className="flex-1 py-3 px-5 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white text-xs font-semibold uppercase tracking-wider text-center transition-all flex items-center justify-center gap-2"
               >
                 <span>Sign In with Email</span>
@@ -328,6 +518,7 @@ export default function CheckoutPage() {
               </Link>
               <Link
                 href="/register?redirect=/checkout"
+                prefetch={false}
                 className="flex-1 py-3 px-5 rounded-full border border-[#173D2B] text-[#173D2B] hover:bg-[#F5F0E7] text-xs font-semibold uppercase tracking-wider text-center transition-all flex items-center justify-center"
               >
                 <span>Create Account</span>
@@ -339,9 +530,13 @@ export default function CheckoutPage() {
     );
   }
 
-  // SECTION 6 — VERIFIED ORDER CONFIRMATION SCREEN
+  // VERIFIED ORDER CONFIRMATION SCREEN
   if (confirmedOrder) {
-    const isCash = String(confirmedOrder.payment_method || "").toLowerCase() === "cash";
+    const payMethod = String(confirmedOrder.payment_method || "").toLowerCase();
+    const isCash = payMethod === "cash";
+    const isCod = payMethod === "cod";
+    const isDelivery = String(confirmedOrder.dining_option || "").toLowerCase() === "delivery";
+    const dlv = confirmedOrder.delivery || null;
     const confirmedItems: Array<{
       id: string;
       name: string;
@@ -380,9 +575,9 @@ export default function CheckoutPage() {
             </p>
           </div>
 
-          {/* Separated Order Status & Payment Status Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="rounded-2xl border border-[#E5DACB] bg-white p-4 flex items-center justify-between">
+          {/* Separated Order, Delivery & Payment Status Cards */}
+          <div className={`grid grid-cols-1 ${isDelivery ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-4`}>
+            <div className="rounded-2xl border border-[#E5DACB] bg-white p-4 flex items-center justify-between gap-2">
               <div>
                 <p className="text-[10px] uppercase font-mono tracking-wider text-[#573B2C]">
                   Order Status
@@ -391,44 +586,98 @@ export default function CheckoutPage() {
                   {confirmedOrder.status || "pending"}
                 </p>
               </div>
-              <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase border bg-stone-100 text-stone-800 border-stone-300">
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border bg-stone-100 text-stone-800 border-stone-300">
                 {confirmedOrder.status || "pending"}
               </span>
             </div>
 
-            <div className="rounded-2xl border border-[#E5DACB] bg-white p-4 flex items-center justify-between">
+            {isDelivery && dlv && (
+              <div className="rounded-2xl border border-[#E5DACB] bg-white p-4 flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-[10px] uppercase font-mono tracking-wider text-[#573B2C]">
+                    Delivery Status
+                  </p>
+                  <p className="font-serif text-sm font-bold text-[#173D2B] mt-0.5">
+                    {formatDeliveryStatusLabel(dlv.delivery_status)}
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border bg-sky-50 text-sky-900 border-sky-200">
+                  {dlv.delivery_status}
+                </span>
+              </div>
+            )}
+
+            <div className="rounded-2xl border border-[#E5DACB] bg-white p-4 flex items-center justify-between gap-2">
               <div>
                 <p className="text-[10px] uppercase font-mono tracking-wider text-[#573B2C]">
-                  Payment Status ({String(confirmedOrder.payment_method || "").toUpperCase()})
+                  Payment ({payMethod.toUpperCase()})
                 </p>
-                <p className="font-serif text-base font-bold text-[#173D2B] capitalize mt-0.5">
-                  {confirmedOrder.payment_status || "pending"}
+                <p className="font-serif text-base font-bold text-[#173D2B] uppercase mt-0.5">
+                  {confirmedOrder.payment_status || (isCod ? "cod_pending" : "pending")}
                 </p>
               </div>
-              <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase border bg-amber-50 text-amber-900 border-amber-200">
-                {confirmedOrder.payment_status || "pending"}
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase border bg-amber-50 text-amber-900 border-amber-200">
+                {confirmedOrder.payment_status || (isCod ? "cod_pending" : "pending")}
               </span>
             </div>
           </div>
 
+          {/* Delivery Handoff Card */}
+          {isDelivery && dlv && (
+            <div className="rounded-2xl border border-[#C9AE8B] bg-[#F5F0E7] p-5 text-xs space-y-2.5">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <span className="font-bold text-[#173D2B] inline-flex items-center gap-1.5">
+                  <Truck className="w-4 h-4 text-[#315640]" />
+                  <span>Delivery Dispatch Details ({dlv.delivery_ref})</span>
+                </span>
+                <span className="font-mono font-bold px-3 py-1 rounded-full bg-[#173D2B] text-[#C9AE8B]">
+                  Handoff Code: {dlv.confirmation_code}
+                </span>
+              </div>
+              <p className="text-[#573B2C]">
+                <strong className="text-[#173D2B]">Recipient:</strong> {dlv.recipient_name} ({dlv.contact_number})
+              </p>
+              <p className="text-[#573B2C]">
+                <strong className="text-[#173D2B]">Address:</strong> {dlv.full_address}
+              </p>
+              <p className="text-[#573B2C]">
+                <strong className="text-[#173D2B]">Estimated Delivery:</strong> {dlv.estimated_delivery_time}
+              </p>
+              <p className="text-[11px] text-[#315640]">
+                Share your 6-character handoff code with your assigned driver upon delivery to record proof of handoff.
+              </p>
+            </div>
+          )}
+
           {/* Clear Next Steps */}
           <div
             className={`rounded-2xl border p-4 sm:p-5 text-xs leading-relaxed flex items-start gap-3 ${
-              isCash
+              isCash || isCod
                 ? "bg-[#F5F0E7] border-[#C9AE8B] text-[#173D2B]"
                 : "bg-amber-50/80 border-amber-200 text-amber-950"
             }`}
           >
             <Info className="w-4 h-4 shrink-0 mt-0.5 text-[#315640]" />
             <div>
-              {isCash ? (
+              {isCod ? (
+                <>
+                  <p className="font-bold">Next Steps — Cash on Delivery (COD_PENDING)</p>
+                  <p className="mt-0.5 text-[#573B2C]">
+                    Prepare{" "}
+                    <strong className="text-[#173D2B]">
+                      ₱{Number(confirmedOrder.confirmed_total || 0).toFixed(2)}
+                    </strong>{" "}
+                    for your assigned rider upon handoff. Your payment status remains{" "}
+                    <strong>COD_PENDING</strong> until delivery completes and our cashier confirms cash remittance.
+                  </p>
+                </>
+              ) : isCash ? (
                 <>
                   <p className="font-bold">Next Steps — Counter Cash Payment</p>
                   <p className="mt-0.5 text-[#573B2C]">
                     Present order reference{" "}
                     <strong className="font-mono text-[#173D2B]">#{confirmedOrder.order_number}</strong> at the counter to pay{" "}
-                    <strong>₱{Number(confirmedOrder.confirmed_total || 0).toFixed(2)}</strong>. Your payment status stays{" "}
-                    <strong>pending</strong> until confirmed by our cashier.
+                    <strong>₱{Number(confirmedOrder.confirmed_total || 0).toFixed(2)}</strong>.
                   </p>
                 </>
               ) : (
@@ -436,7 +685,7 @@ export default function CheckoutPage() {
                   <p className="font-bold">Next Steps — Portfolio Demo Payment</p>
                   <p className="mt-0.5">
                     This portfolio demonstration records online methods with{" "}
-                    <strong>payment_status: pending</strong> (no real e-wallet or card charge is processed). You can monitor live order progress anytime on My Orders.
+                    <strong>payment_status: pending</strong> (no real e-wallet or card charge is processed). Track status updates anytime on My Orders.
                   </p>
                 </>
               )}
@@ -485,6 +734,7 @@ export default function CheckoutPage() {
                   {confirmedOrder.dining_option}
                   {confirmedOrder.confirmed_zone ? ` · ${confirmedOrder.confirmed_zone}` : ""}
                   {confirmedOrder.confirmed_table ? ` (Table ${confirmedOrder.confirmed_table})` : ""}
+                  {confirmedOrder.confirmed_pickup_time ? ` · ${confirmedOrder.confirmed_pickup_time}` : ""}
                 </span>
               </div>
               {confirmedOrder.confirmed_notes && (
@@ -501,6 +751,14 @@ export default function CheckoutPage() {
                   ₱{Number(confirmedOrder.confirmed_subtotal || 0).toFixed(2)}
                 </span>
               </div>
+              {Number(confirmedOrder.confirmed_delivery_fee || 0) > 0 && (
+                <div className="flex justify-between text-[#573B2C]">
+                  <span>Delivery Fee</span>
+                  <span className="font-mono">
+                    +₱{Number(confirmedOrder.confirmed_delivery_fee).toFixed(2)}
+                  </span>
+                </div>
+              )}
               {Number(confirmedOrder.confirmed_discount || 0) > 0 && (
                 <div className="flex justify-between text-emerald-800 font-semibold">
                   <span>Discount ({confirmedOrder.promo_code})</span>
@@ -521,16 +779,11 @@ export default function CheckoutPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
               href="/my-orders"
+              prefetch={false}
               className="w-full sm:w-auto px-7 py-3.5 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white text-xs font-semibold uppercase tracking-wider transition-all text-center shadow-sm inline-flex items-center justify-center gap-2"
             >
               <Package className="w-4 h-4 text-[#C9AE8B]" />
-              <span>View in My Orders</span>
-            </Link>
-            <Link
-              href={`/track-order?code=${encodeURIComponent(confirmedOrder.order_number)}`}
-              className="w-full sm:w-auto px-7 py-3.5 rounded-full border border-[#173D2B] text-[#173D2B] hover:bg-[#F5F0E7] text-xs font-semibold uppercase tracking-wider transition-all text-center"
-            >
-              Track Live Status
+              <span>Track in My Orders</span>
             </Link>
             <Link
               href="/menu"
@@ -544,7 +797,7 @@ export default function CheckoutPage() {
     );
   }
 
-  // EMPTY CART GUARD — Never allow checkout submission on an empty cart
+  // EMPTY CART GUARD
   if (items.length === 0) {
     return (
       <div className="py-16 sm:py-24 bg-[#FFFCF7] min-h-[70vh]">
@@ -571,6 +824,7 @@ export default function CheckoutPage() {
               </Link>
               <Link
                 href="/my-orders"
+                prefetch={false}
                 className="w-full sm:w-auto px-7 py-3.5 rounded-full border border-[#E5DACB] text-[#573B2C] hover:bg-[#F5F0E7] text-xs font-semibold uppercase tracking-wider transition-all inline-flex items-center justify-center"
               >
                 <span>View My Orders</span>
@@ -582,7 +836,7 @@ export default function CheckoutPage() {
     );
   }
 
-  // FOCUSED CHECKOUT PAGE (Sections A–E — zero account dashboard or order history clutter)
+  // FOCUSED CHECKOUT PAGE (Sections A–E with Dine-in, Takeaway, and Complete Delivery)
   return (
     <div className="py-10 sm:py-14 bg-[#FFFCF7] min-h-screen">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
@@ -606,7 +860,7 @@ export default function CheckoutPage() {
               Checkout
             </h1>
             <p className="text-xs sm:text-sm text-[#573B2C] mt-1">
-              Review your order details and select how you&apos;d like to dine and pay.
+              Review your order details and choose Dine-in, Takeaway, or Delivery.
             </p>
           </div>
           <Link
@@ -675,13 +929,19 @@ export default function CheckoutPage() {
 
                 <div className="sm:col-span-2">
                   <label htmlFor="checkout-phone" className="font-semibold text-[#173D2B] block mb-1.5">
-                    Mobile Number <span className="text-[#573B2C]/60 font-normal">(for pickup or order updates)</span>
+                    Mobile Number{" "}
+                    <span className="text-[#573B2C]/60 font-normal">
+                      ({diningOption === "Delivery" ? "used for order & rider updates" : "for pickup or order updates"})
+                    </span>
                   </label>
                   <input
                     id="checkout-phone"
                     type="tel"
                     value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    onChange={(e) => {
+                      setCustomerPhone(e.target.value);
+                      if (!deliveryPhone) setDeliveryPhone(e.target.value);
+                    }}
                     placeholder="e.g. 0917 888 9900"
                     className="w-full rounded-xl border border-[#E5DACB] px-3.5 py-3 text-xs text-[#173D2B] font-mono bg-[#FFFCF7] focus:outline-hidden focus:border-[#173D2B]"
                   />
@@ -689,8 +949,8 @@ export default function CheckoutPage() {
               </div>
             </section>
 
-            {/* SECTION B — DINING PREFERENCE */}
-            <section className="rounded-3xl border border-[#E5DACB] bg-white p-6 sm:p-7 space-y-4 shadow-2xs">
+            {/* SECTION B — DINING PREFERENCE (3 OPTIONS: DINE-IN, TAKEAWAY, DELIVERY) */}
+            <section className="rounded-3xl border border-[#E5DACB] bg-white p-6 sm:p-7 space-y-5 shadow-2xs">
               <div>
                 <span className="text-[10px] font-mono uppercase tracking-[0.2em] text-[#315640]">
                   Section B
@@ -700,10 +960,10 @@ export default function CheckoutPage() {
                 </h2>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <button
                   type="button"
-                  onClick={() => setDiningOption("Dine-in")}
+                  onClick={() => handleSelectDining("Dine-in")}
                   className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
                     diningOption === "Dine-in"
                       ? "bg-[#173D2B] text-white border-[#173D2B] shadow-sm"
@@ -722,14 +982,14 @@ export default function CheckoutPage() {
                         diningOption === "Dine-in" ? "text-white/75" : "text-[#573B2C]"
                       }`}
                     >
-                      Served fresh to your café table
+                      Served fresh to your table
                     </p>
                   </div>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setDiningOption("Takeaway")}
+                  onClick={() => handleSelectDining("Takeaway")}
                   className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
                     diningOption === "Takeaway"
                       ? "bg-[#173D2B] text-white border-[#173D2B] shadow-sm"
@@ -742,20 +1002,47 @@ export default function CheckoutPage() {
                     }`}
                   />
                   <div>
-                    <p className="font-bold text-sm">Takeaway / Counter Pickup</p>
+                    <p className="font-bold text-sm">Takeaway</p>
                     <p
                       className={`text-[11px] mt-0.5 ${
                         diningOption === "Takeaway" ? "text-white/75" : "text-[#573B2C]"
                       }`}
                     >
-                      Packed ready for express counter pickup
+                      Express counter pickup
+                    </p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSelectDining("Delivery")}
+                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex items-start gap-3 ${
+                    diningOption === "Delivery"
+                      ? "bg-[#173D2B] text-white border-[#173D2B] shadow-sm"
+                      : "bg-[#FFFCF7] text-[#173D2B] border-[#E5DACB] hover:border-[#C9AE8B]"
+                  }`}
+                >
+                  <Truck
+                    className={`w-5 h-5 shrink-0 mt-0.5 ${
+                      diningOption === "Delivery" ? "text-[#C9AE8B]" : "text-[#315640]"
+                    }`}
+                  />
+                  <div>
+                    <p className="font-bold text-sm">Delivery</p>
+                    <p
+                      className={`text-[11px] mt-0.5 ${
+                        diningOption === "Delivery" ? "text-white/75" : "text-[#573B2C]"
+                      }`}
+                    >
+                      Delivered to serviceable zones
                     </p>
                   </div>
                 </button>
               </div>
 
+              {/* DINE-IN FIELDS ONLY */}
               {diningOption === "Dine-in" && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-[#E5DACB]/70 text-xs animate-fade-in">
                   <div>
                     <label htmlFor="seating-zone" className="font-semibold text-[#173D2B] block mb-1.5">
                       Preferred Seating Area
@@ -787,6 +1074,356 @@ export default function CheckoutPage() {
                       placeholder="e.g. Table 4"
                       className="w-full rounded-xl border border-[#E5DACB] px-3.5 py-3 text-xs text-[#173D2B] bg-[#FFFCF7] focus:outline-hidden focus:border-[#173D2B]"
                     />
+                  </div>
+                </div>
+              )}
+
+              {/* TAKEAWAY / COUNTER PICKUP FIELDS ONLY */}
+              {diningOption === "Takeaway" && (
+                <div className="pt-3 border-t border-[#E5DACB]/70 space-y-3 text-xs animate-fade-in">
+                  <div>
+                    <label htmlFor="pickup-time" className="font-semibold text-[#173D2B] block mb-1.5">
+                      Pickup Time Preference
+                    </label>
+                    <select
+                      id="pickup-time"
+                      value={pickupTimePreference}
+                      onChange={(e) => setPickupTimePreference(e.target.value)}
+                      className="w-full rounded-xl border border-[#E5DACB] px-3.5 py-3 text-xs text-[#173D2B] bg-[#FFFCF7] focus:outline-hidden focus:border-[#173D2B]"
+                    >
+                      {PICKUP_TIME_OPTIONS.map((slot) => (
+                        <option key={slot} value={slot}>
+                          {slot}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="p-3.5 rounded-2xl bg-[#F5F0E7]/80 border border-[#E5DACB] flex items-center gap-2.5 text-[11px] text-[#573B2C]">
+                    <Clock className="w-4 h-4 text-[#315640] shrink-0" />
+                    <span>
+                      Track live pickup status (<strong className="text-[#173D2B]">Placed → Preparing → Ready</strong>) on My Orders after submitting.
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* DELIVERY FIELDS ONLY */}
+              {diningOption === "Delivery" && (
+                <div className="pt-4 border-t border-[#E5DACB]/70 space-y-5 text-xs animate-fade-in">
+                  {/* Configured Serviceable Zones Selector */}
+                  <div className="rounded-2xl border border-[#E5DACB] bg-[#F5F0E7]/70 p-4 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="font-bold text-[#173D2B] inline-flex items-center gap-1.5">
+                        <MapPin className="w-4 h-4 text-[#315640]" />
+                        <span>Configured Serviceable Delivery Zones</span>
+                      </span>
+                      {zonesLoading && (
+                        <span className="text-[11px] font-mono text-[#573B2C]">Loading zones...</span>
+                      )}
+                    </div>
+
+                    {!zonesLoading && deliveryZones.length === 0 ? (
+                      <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-[11px] leading-relaxed">
+                        <strong>No active delivery zones configured yet.</strong> Ask a café manager to configure serviceable barangays, fees, and minimum order amounts in <strong>Admin → Delivery Management</strong> before placing a Delivery order.
+                      </div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {deliveryZones.map((zone) => {
+                          const isSelected = matchedZone?.id === zone.id;
+                          return (
+                            <button
+                              key={zone.id}
+                              type="button"
+                              onClick={() => applyQuickZone(zone)}
+                              className={`px-3 py-1.5 rounded-xl border text-[11px] font-medium transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-[#173D2B] text-white border-[#173D2B] shadow-2xs"
+                                  : "bg-white text-[#173D2B] border-[#E5DACB] hover:border-[#315640]"
+                              }`}
+                            >
+                              <span>{zone.area_label}</span>
+                              <span
+                                className={`ml-1.5 font-mono ${
+                                  isSelected ? "text-[#C9AE8B]" : "text-[#315640]"
+                                }`}
+                              >
+                                · ₱{zone.delivery_fee}
+                                {zone.min_order_amount > 0 ? ` (min ₱${zone.min_order_amount})` : ""}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Saved Addresses Picker */}
+                  {savedAddresses.length > 0 && (
+                    <div className="space-y-2">
+                      <span className="font-semibold text-[#173D2B] inline-flex items-center gap-1.5">
+                        <Bookmark className="w-3.5 h-3.5 text-[#315640]" />
+                        <span>Saved Delivery Addresses</span>
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        {savedAddresses.map((addr) => {
+                          const active = selectedAddressId === addr.id;
+                          return (
+                            <button
+                              key={addr.id}
+                              type="button"
+                              onClick={() => applySavedAddress(addr)}
+                              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                                active
+                                  ? "border-[#173D2B] bg-[#F5F0E7] ring-1 ring-[#173D2B]"
+                                  : "border-[#E5DACB] bg-[#FFFCF7] hover:border-[#C9AE8B]"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-bold text-[#173D2B]">{addr.label}</span>
+                                <span className="text-[10px] font-mono text-[#315640]">
+                                  {addr.barangay}, {addr.city}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-[#573B2C] truncate mt-0.5">
+                                {addr.house_number} {addr.street}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recipient & Complete Structured Address Form */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="dlv-recipient" className="font-semibold text-[#173D2B] block mb-1.5">
+                        Recipient Full Name <span className="text-amber-800">*</span>
+                      </label>
+                      <input
+                        id="dlv-recipient"
+                        type="text"
+                        required
+                        value={recipientName}
+                        onChange={(e) => setRecipientName(e.target.value)}
+                        placeholder="Recipient full name"
+                        className="w-full rounded-xl border border-[#E5DACB] px-3.5 py-3 text-xs text-[#173D2B] bg-[#FFFCF7] focus:outline-hidden focus:border-[#173D2B]"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="dlv-phone" className="font-semibold text-[#173D2B] block mb-1.5">
+                        Recipient Contact Number <span className="text-amber-800">*</span>
+                      </label>
+                      <input
+                        id="dlv-phone"
+                        type="tel"
+                        required
+                        value={deliveryPhone}
+                        onChange={(e) => setDeliveryPhone(e.target.value)}
+                        placeholder="e.g. 0917 888 9900"
+                        className="w-full rounded-xl border border-[#E5DACB] px-3.5 py-3 text-xs text-[#173D2B] font-mono bg-[#FFFCF7] focus:outline-hidden focus:border-[#173D2B]"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="dlv-house" className="font-semibold text-[#173D2B] block mb-1.5">
+                        House / Unit / Building No. <span className="text-amber-800">*</span>
+                      </label>
+                      <input
+                        id="dlv-house"
+                        type="text"
+                        required
+                        value={houseNumber}
+                        onChange={(e) => setHouseNumber(e.target.value)}
+                        placeholder="e.g. Lot 12 Blk 4 / Unit 3B"
+                        className="w-full rounded-xl border border-[#E5DACB] px-3.5 py-3 text-xs text-[#173D2B] bg-[#FFFCF7] focus:outline-hidden focus:border-[#173D2B]"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="dlv-street" className="font-semibold text-[#173D2B] block mb-1.5">
+                        Street / Subdivision <span className="text-amber-800">*</span>
+                      </label>
+                      <input
+                        id="dlv-street"
+                        type="text"
+                        required
+                        value={street}
+                        onChange={(e) => setStreet(e.target.value)}
+                        placeholder="e.g. Aguinaldo Highway / Mahogany St."
+                        className="w-full rounded-xl border border-[#E5DACB] px-3.5 py-3 text-xs text-[#173D2B] bg-[#FFFCF7] focus:outline-hidden focus:border-[#173D2B]"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="dlv-barangay" className="font-semibold text-[#173D2B] block mb-1.5">
+                        Barangay <span className="text-amber-800">*</span>
+                      </label>
+                      <input
+                        id="dlv-barangay"
+                        type="text"
+                        required
+                        value={barangay}
+                        onChange={(e) => setBarangay(e.target.value)}
+                        placeholder="e.g. Maharlika East"
+                        className="w-full rounded-xl border border-[#E5DACB] px-3.5 py-3 text-xs text-[#173D2B] bg-[#FFFCF7] focus:outline-hidden focus:border-[#173D2B]"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="dlv-city" className="font-semibold text-[#173D2B] block mb-1.5">
+                        City / Municipality <span className="text-amber-800">*</span>
+                      </label>
+                      <input
+                        id="dlv-city"
+                        type="text"
+                        required
+                        value={city}
+                        onChange={(e) => setCity(e.target.value)}
+                        placeholder="e.g. Tagaytay City"
+                        className="w-full rounded-xl border border-[#E5DACB] px-3.5 py-3 text-xs text-[#173D2B] bg-[#FFFCF7] focus:outline-hidden focus:border-[#173D2B]"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label htmlFor="dlv-landmark" className="font-semibold text-[#173D2B] block mb-1.5">
+                        Landmark <span className="text-[#573B2C]/60 font-normal">(Helps our rider find you faster)</span>
+                      </label>
+                      <input
+                        id="dlv-landmark"
+                        type="text"
+                        maxLength={120}
+                        value={landmark}
+                        onChange={(e) => setLandmark(e.target.value)}
+                        placeholder="e.g. Across Sky Ranch gate / beside green chapel"
+                        className="w-full rounded-xl border border-[#E5DACB] px-3.5 py-3 text-xs text-[#173D2B] bg-[#FFFCF7] focus:outline-hidden focus:border-[#173D2B]"
+                      />
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <label htmlFor="dlv-instructions" className="font-semibold text-[#173D2B] block mb-1.5">
+                        Delivery Instructions <span className="text-[#573B2C]/60 font-normal">(Gate code, drop-off note)</span>
+                      </label>
+                      <input
+                        id="dlv-instructions"
+                        type="text"
+                        maxLength={240}
+                        value={deliveryInstructions}
+                        onChange={(e) => setDeliveryInstructions(e.target.value)}
+                        placeholder="e.g. Call upon arrival at main lobby / leave with guard"
+                        className="w-full rounded-xl border border-[#E5DACB] px-3.5 py-3 text-xs text-[#173D2B] bg-[#FFFCF7] focus:outline-hidden focus:border-[#173D2B]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Live Zone Validation Feedback */}
+                  {hasEnteredZoneFields && (
+                    matchedZone ? (
+                      <div
+                        className={`p-3.5 rounded-2xl border text-[11px] flex items-start justify-between gap-3 flex-wrap ${
+                          isDeliveryBelowMin
+                            ? "bg-amber-50 border-amber-300 text-amber-950"
+                            : "bg-emerald-50 border-emerald-200 text-emerald-950"
+                        }`}
+                      >
+                        <div className="space-y-0.5">
+                          <p className="font-bold">
+                            {isDeliveryBelowMin
+                              ? `Minimum Order Not Met for ${matchedZone.area_label}`
+                              : `Serviceable Zone Verified: ${matchedZone.area_label}`}
+                          </p>
+                          <p>
+                            Delivery Fee: <strong className="font-mono">₱{matchedZone.delivery_fee.toFixed(2)}</strong> · Est. Time:{" "}
+                            <strong>{matchedZone.estimated_minutes}</strong>
+                            {matchedZone.min_order_amount > 0 && (
+                              <>
+                                {" "}· Min. Order:{" "}
+                                <strong className="font-mono">₱{matchedZone.min_order_amount.toFixed(2)}</strong>
+                              </>
+                            )}
+                          </p>
+                        </div>
+                        {!isDeliveryBelowMin && (
+                          <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 font-bold uppercase text-[10px]">
+                            Eligible
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-3.5 rounded-2xl border border-rose-200 bg-rose-50 text-rose-900 text-[11px] flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-700" />
+                        <span>
+                          <strong>Outside Serviceable Delivery Zones:</strong> Brgy. {barangay.trim()}, {city.trim()} is not currently covered. Choose one of the configured serviceable zones above or switch to Takeaway / Dine-in.
+                        </span>
+                      </div>
+                    )
+                  )}
+
+                  {/* ASAP vs Scheduled Delivery + Save Address */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                    <div className="space-y-2">
+                      <span className="font-semibold text-[#173D2B] block">Delivery Timing</span>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setScheduleType("asap")}
+                          className={`flex-1 py-2.5 px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
+                            scheduleType === "asap"
+                              ? "bg-[#173D2B] text-white border-[#173D2B]"
+                              : "bg-[#FFFCF7] text-[#573B2C] border-[#E5DACB]"
+                          }`}
+                        >
+                          ASAP
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setScheduleType("scheduled")}
+                          className={`flex-1 py-2.5 px-3 rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
+                            scheduleType === "scheduled"
+                              ? "bg-[#173D2B] text-white border-[#173D2B]"
+                              : "bg-[#FFFCF7] text-[#573B2C] border-[#E5DACB]"
+                          }`}
+                        >
+                          Scheduled
+                        </button>
+                      </div>
+                      {scheduleType === "scheduled" && (
+                        <select
+                          value={scheduledWindow}
+                          onChange={(e) => setScheduledWindow(e.target.value)}
+                          className="w-full rounded-xl border border-[#E5DACB] px-3 py-2.5 text-xs text-[#173D2B] bg-[#FFFCF7]"
+                        >
+                          {DELIVERY_SCHEDULE_WINDOWS.map((w) => (
+                            <option key={w} value={w}>
+                              {w}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 font-semibold text-[#173D2B] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={saveAddressForLater}
+                          onChange={(e) => setSaveAddressForLater(e.target.checked)}
+                          className="accent-[#173D2B] w-4 h-4 rounded"
+                        />
+                        <span>Save address to my account</span>
+                      </label>
+                      {saveAddressForLater && (
+                        <input
+                          type="text"
+                          maxLength={40}
+                          value={addressLabel}
+                          onChange={(e) => setAddressLabel(e.target.value)}
+                          placeholder="Label (e.g. Home, Office)"
+                          className="w-full rounded-xl border border-[#E5DACB] px-3 py-2.5 text-xs text-[#173D2B] bg-[#FFFCF7]"
+                        />
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
@@ -831,12 +1468,12 @@ export default function CheckoutPage() {
                   </h2>
                 </div>
                 <span className="text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900 font-bold">
-                  Pending Until Verified
+                  {paymentMethod === "cod" ? "COD_PENDING Until Confirmed" : "Pending Until Verified"}
                 </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {PAYMENT_OPTIONS.map((opt) => {
+                {visiblePaymentOptions.map((opt) => {
                   const Icon = opt.icon;
                   const selected = paymentMethod === opt.id;
                   return (
@@ -949,9 +1586,7 @@ export default function CheckoutPage() {
                     Apply
                   </button>
                 </div>
-                {promoFeedback && (
-                  <p className="text-[11px] text-[#315640]">{promoFeedback}</p>
-                )}
+                {promoFeedback && <p className="text-[11px] text-[#315640]">{promoFeedback}</p>}
               </div>
 
               {/* Totals */}
@@ -962,12 +1597,37 @@ export default function CheckoutPage() {
                     ₱{subtotal.toFixed(2)}
                   </span>
                 </div>
+
+                {diningOption === "Delivery" && (
+                  <>
+                    <div className="flex justify-between">
+                      <span>
+                        Delivery Fee {matchedZone ? `(${matchedZone.barangay})` : ""}
+                      </span>
+                      <span className="font-mono font-semibold text-[#173D2B]">
+                        {matchedZone ? `₱${deliveryFee.toFixed(2)}` : "Enter valid zone"}
+                      </span>
+                    </div>
+                    {matchedZone && (
+                      <div className="flex justify-between text-[11px] text-[#315640]">
+                        <span>Estimated Delivery</span>
+                        <span className="font-medium">
+                          {scheduleType === "scheduled"
+                            ? scheduledWindow
+                            : matchedZone.estimated_minutes}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                )}
+
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-emerald-800 font-semibold">
                     <span>Discount ({appliedPromoCode})</span>
                     <span className="font-mono">-₱{discountAmount.toFixed(2)}</span>
                   </div>
                 )}
+
                 <div className="flex justify-between items-center text-emerald-900 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
                   <span className="inline-flex items-center gap-1.5 font-medium">
                     <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
@@ -986,18 +1646,26 @@ export default function CheckoutPage() {
 
               <button
                 type="submit"
-                disabled={submitting || items.length === 0}
-                className="w-full py-4 rounded-full bg-[#173D2B] hover:bg-[#315640] disabled:opacity-60 text-white text-xs font-semibold uppercase tracking-wider transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
+                disabled={
+                  submitting ||
+                  items.length === 0 ||
+                  (diningOption === "Delivery" && (!matchedZone || isDeliveryBelowMin))
+                }
+                className="w-full py-4 rounded-full bg-[#173D2B] hover:bg-[#315640] disabled:opacity-50 text-white text-xs font-semibold uppercase tracking-wider transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>
-                  {submitting ? "Placing Order..." : `Place Order · ₱${finalTotal.toFixed(2)}`}
+                  {submitting
+                    ? "Placing Order..."
+                    : diningOption === "Delivery" && !matchedZone
+                      ? "Select Valid Delivery Zone"
+                      : `Place Order · ₱${finalTotal.toFixed(2)}`}
                 </span>
                 {!submitting && <ArrowRight className="w-4 h-4 text-[#C9AE8B]" />}
               </button>
 
               <p className="text-[11px] text-center text-[#573B2C] flex items-center justify-center gap-1.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#315640]" />
-                <span>Server-validated pricing · Live Airtable order queue</span>
+                <span>Server-validated zone fees &amp; pricing</span>
               </p>
             </section>
           </aside>

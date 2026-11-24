@@ -22,6 +22,7 @@ import {
   Unlock,
   KeyRound,
   Mail,
+  Truck,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { API_BASE_URL } from "@/lib/api";
@@ -124,6 +125,7 @@ export default function AdminLayout({
   const navItems = [
     { label: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { label: "Live Orders", href: "/admin/orders", icon: ShoppingBag },
+    { label: "Deliveries", href: "/admin/deliveries", icon: Truck },
     { label: "Products Catalog", href: "/admin/products", icon: Package },
     { label: "Categories", href: "/admin/categories", icon: Layers },
     { label: "Inventory Stock", href: "/admin/inventory", icon: Boxes },

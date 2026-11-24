@@ -43,6 +43,7 @@ const STATUS_TABS = [
 
 const METHOD_OPTIONS = [
   { id: "all", label: "All Methods" },
+  { id: "cod", label: "Cash on Delivery (COD)" },
   { id: "cash", label: "Counter Cash" },
   { id: "gcash", label: "GCash" },
   { id: "maya", label: "Maya" },

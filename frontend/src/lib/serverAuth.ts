@@ -19,10 +19,22 @@ export interface AdminSessionPayload {
   exp: number;
 }
 
+export interface DriverSessionPayload {
+  sub: string;
+  staff_id: string;
+  email: string;
+  role: "driver";
+  name: string;
+  phone?: string;
+  exp: number;
+}
+
 export const SESSION_COOKIE_NAME = "jhes_session";
 export const ADMIN_COOKIE_NAME = "jhes_admin_session";
+export const DRIVER_COOKIE_NAME = "jhes_driver_session";
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
 const ADMIN_SESSION_TTL_SECONDS = 12 * 60 * 60;
+const DRIVER_SESSION_TTL_SECONDS = 12 * 60 * 60;
 
 function getSigningSecret(): string {
   const secret =
@@ -113,6 +125,49 @@ export function verifyAdminToken(token?: string | null): AdminSessionPayload | n
   } catch {
     return null;
   }
+}
+
+export function signDriverToken(payload: Omit<DriverSessionPayload, "exp">): string {
+  const fullPayload: DriverSessionPayload = {
+    ...payload,
+    role: "driver",
+    exp: Math.floor(Date.now() / 1000) + DRIVER_SESSION_TTL_SECONDS,
+  };
+  const encoded = Buffer.from(JSON.stringify(fullPayload), "utf-8").toString("base64url");
+  const sig = hmacSign(`driver:${encoded}`);
+  return `jhes_drv_v1.${encoded}.${sig}`;
+}
+
+export function verifyDriverToken(token?: string | null): DriverSessionPayload | null {
+  if (!token || typeof token !== "string") return null;
+  const parts = token.split(".");
+  if (parts.length !== 3 || parts[0] !== "jhes_drv_v1") {
+    return null;
+  }
+  const [, encoded, sig] = parts;
+  const expectedSig = hmacSign(`driver:${encoded}`);
+  try {
+    const sigBuf = Buffer.from(sig, "utf-8");
+    const expBuf = Buffer.from(expectedSig, "utf-8");
+    if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+      return null;
+    }
+    const decoded = JSON.parse(Buffer.from(encoded, "base64url").toString("utf-8")) as DriverSessionPayload;
+    if (!decoded.exp || decoded.exp < Math.floor(Date.now() / 1000)) {
+      return null;
+    }
+    if (decoded.role !== "driver" || !decoded.sub) {
+      return null;
+    }
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+export function getAuthenticatedDriver(req: NextRequest): DriverSessionPayload | null {
+  const driverCookie = req.cookies.get(DRIVER_COOKIE_NAME)?.value;
+  return verifyDriverToken(driverCookie);
 }
 
 export function getAuthenticatedUser(req: NextRequest): SessionPayload | null {

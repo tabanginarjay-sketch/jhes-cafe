@@ -4,9 +4,24 @@ from typing import Any, List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 ALLOWED_ORDER_STATUSES = {"pending", "confirmed", "preparing", "ready", "completed", "cancelled"}
-ALLOWED_PAYMENT_STATUSES = {"unpaid", "pending", "paid", "failed", "refunded"}
-ALLOWED_PAYMENT_METHODS = {"gcash", "maya", "card", "cash"}
-ALLOWED_DINING_OPTIONS = {"Dine-in", "Takeaway"}
+ALLOWED_PAYMENT_STATUSES = {"unpaid", "pending", "cod_pending", "paid", "failed", "refunded"}
+ALLOWED_PAYMENT_METHODS = {"gcash", "maya", "card", "cash", "cod"}
+ALLOWED_DINING_OPTIONS = {"Dine-in", "Takeaway", "Delivery"}
+
+
+class DeliveryAddressInput(BaseModel):
+    recipient_name: str = Field(..., min_length=2, max_length=100)
+    contact_number: str = Field(..., min_length=7, max_length=32)
+    house_number: str = Field(..., min_length=1, max_length=60)
+    street: str = Field(..., min_length=2, max_length=120)
+    barangay: str = Field(..., min_length=2, max_length=80)
+    city: str = Field(..., min_length=2, max_length=80)
+    landmark: Optional[str] = Field(default="", max_length=120)
+    delivery_instructions: Optional[str] = Field(default="", max_length=240)
+    schedule_type: str = Field(default="asap", pattern="^(asap|scheduled)$")
+    scheduled_window: Optional[str] = Field(default=None, max_length=60)
+    save_address: bool = Field(default=False)
+    address_label: Optional[str] = Field(default="Home", max_length=40)
 
 
 # ==================== ORDER ITEM SCHEMAS ====================
@@ -76,6 +91,8 @@ class OrderCreate(BaseModel):
     dining_option: str = "Dine-in"
     table_number: Optional[str] = Field(default=None, max_length=20)
     seating_zone: Optional[str] = Field(default=None, max_length=60)
+    pickup_time_preference: Optional[str] = Field(default=None, max_length=60)
+    delivery_address: Optional[DeliveryAddressInput] = None
     payment_method: str = "gcash"
     promo_code: Optional[str] = Field(default=None, max_length=32)
     special_notes: Optional[str] = Field(default=None, max_length=200)

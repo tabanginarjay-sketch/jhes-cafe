@@ -4,15 +4,22 @@
  * and shopping cart drafts while preserving all existing Airtable record IDs untouched.
  */
 
-export type NormalizedPaymentStatus = "pending" | "completed" | "failed" | "refunded";
-export type PaymentProvider = "cash" | "gcash" | "maya" | "card";
-export type VerificationMode = "cashier_counter" | "demo_simulated" | "provider_webhook" | "unverified";
+export type NormalizedPaymentStatus = "pending" | "cod_pending" | "completed" | "failed" | "refunded";
+export type PaymentProvider = "cash" | "cod" | "gcash" | "maya" | "card";
+export type VerificationMode =
+  | "cashier_counter"
+  | "cod_confirmed"
+  | "demo_simulated"
+  | "provider_webhook"
+  | "unverified";
 
 export interface PaymentAuditEntry {
   at: string;
   action:
     | "created"
     | "cash_confirmed"
+    | "cod_collected"
+    | "cod_confirmed"
     | "demo_verified"
     | "webhook_verified"
     | "marked_failed"
@@ -109,7 +116,14 @@ export interface LoyaltyDashboardStats {
 }
 
 export const ONLINE_PAYMENT_PROVIDERS = new Set<string>(["gcash", "maya", "card"]);
-export const VALID_PAYMENT_PROVIDERS = new Set<string>(["cash", "gcash", "maya", "card"]);
+export const VALID_PAYMENT_PROVIDERS = new Set<string>(["cash", "cod", "gcash", "maya", "card"]);
+const DELIVERY_SYSTEM_PROVIDERS = new Set<string>([
+  "delivery_zone",
+  "delivery_dispatch",
+  "customer_address",
+  "customer_notification",
+  "driver_profile",
+]);
 const AUDIT_SEPARATOR = " || AUDIT:";
 const REFUND_PREFIX = "REFUND-OF:";
 
@@ -163,26 +177,47 @@ export function isAuthCredentialRecord(rec: Record<string, any>): boolean {
   );
 }
 
+export function isDeliverySystemRecord(rec: Record<string, any>): boolean {
+  const provider = String(rec.provider || "").toLowerCase().trim();
+  const paymentRef = String(rec.payment_ref || "").toUpperCase().trim();
+  const orderNumber = String(rec.order_number || "").toUpperCase().trim();
+  return (
+    DELIVERY_SYSTEM_PROVIDERS.has(provider) ||
+    paymentRef.startsWith("ZONE-") ||
+    paymentRef.startsWith("DLV-") ||
+    paymentRef.startsWith("ADDR-") ||
+    paymentRef.startsWith("NTF-") ||
+    paymentRef.startsWith("DRV-") ||
+    orderNumber === "DELIVERY-ZONE" ||
+    orderNumber === "CUSTOMER-ADDRESS" ||
+    orderNumber === "NOTIFICATION" ||
+    orderNumber === "DRIVER-PROFILE"
+  );
+}
+
 export function isOrderPaymentRecord(rec: Record<string, any>): boolean {
   return (
     !isLoyaltyRecord(rec) &&
     !isRefundRecord(rec) &&
     !isCartRecord(rec) &&
-    !isAuthCredentialRecord(rec)
+    !isAuthCredentialRecord(rec) &&
+    !isDeliverySystemRecord(rec)
   );
 }
 
-export function normalizePaymentStatus(raw?: unknown): NormalizedPaymentStatus {
+export function normalizePaymentStatus(raw?: unknown, providerRaw?: unknown): NormalizedPaymentStatus {
   const s = String(raw || "pending").toLowerCase().trim();
+  const p = String(providerRaw || "").toLowerCase().trim();
   if (s === "completed" || s === "paid") return "completed";
   if (s === "failed") return "failed";
   if (s === "refunded") return "refunded";
+  if (s === "cod_pending" || (p === "cod" && s === "pending")) return "cod_pending";
   return "pending";
 }
 
 export function normalizeProvider(raw?: unknown): PaymentProvider {
   const p = String(raw || "cash").toLowerCase().trim();
-  if (p === "gcash" || p === "maya" || p === "card" || p === "cash") {
+  if (p === "gcash" || p === "maya" || p === "card" || p === "cash" || p === "cod") {
     return p;
   }
   return "cash";
@@ -217,8 +252,8 @@ export function parseTransactionField(
     }
   }
 
-  const status = normalizePaymentStatus(rawRecord.status);
   const provider = normalizeProvider(rawRecord.provider);
+  const status = normalizePaymentStatus(rawRecord.status, provider);
   const createdAt = String(rawRecord.created_at || new Date().toISOString());
 
   // Always synthesize the initial creation event if not already recorded in audit entries
@@ -236,32 +271,43 @@ export function parseTransactionField(
     auditEntries.unshift({
       at: createdAt,
       action: "created",
-      status: "pending",
+      status: provider === "cod" ? "cod_pending" : "pending",
       by: "Checkout System",
       role: "system",
       ref: primaryRef || String(rawRecord.payment_ref || ""),
       reason:
-        provider === "cash"
-          ? "Counter cash payment initiated upon order submission (awaiting cashier confirmation)."
-          : "Online payment record initiated upon order submission (pending provider verification).",
+        provider === "cod"
+          ? "Cash on Delivery (COD) payment initiated upon order submission (awaiting delivery & authorized remittance confirmation)."
+          : provider === "cash"
+            ? "Counter cash payment initiated upon order submission (awaiting cashier confirmation)."
+            : "Online payment record initiated upon order submission (pending provider verification).",
       is_simulated: initiallySimulated,
     });
 
     // For legacy pre-audit records already completed/failed/refunded, synthesize a truthful state entry
     if (status === "completed" && parsedEntries.length === 0) {
       const isCashLegacy = provider === "cash";
+      const isCodLegacy = provider === "cod";
       const isWebhookLegacy = primaryRef.startsWith("WEBHOOK-VERIFIED-");
       auditEntries.push({
         at: createdAt,
-        action: isCashLegacy
-          ? "cash_confirmed"
-          : isWebhookLegacy
-            ? "webhook_verified"
-            : "demo_verified",
+        action: isCodLegacy
+          ? "cod_confirmed"
+          : isCashLegacy
+            ? "cash_confirmed"
+            : isWebhookLegacy
+              ? "webhook_verified"
+              : "demo_verified",
         status: "completed",
-        by: isCashLegacy ? "Authorized Cashier (Legacy Record)" : isWebhookLegacy ? "Payment Gateway Webhook" : "Portfolio Demo Seed / Legacy Verification",
+        by: isCodLegacy
+          ? "Authorized Cashier (COD)"
+          : isCashLegacy
+            ? "Authorized Cashier (Legacy Record)"
+            : isWebhookLegacy
+              ? "Payment Gateway Webhook"
+              : "Portfolio Demo Seed / Legacy Verification",
         ref: primaryRef,
-        is_simulated: !isCashLegacy && !isWebhookLegacy,
+        is_simulated: !isCashLegacy && !isCodLegacy && !isWebhookLegacy,
       });
     } else if (status === "failed" && parsedEntries.length === 0) {
       auditEntries.push({
@@ -292,7 +338,10 @@ export function parseTransactionField(
   const verifiedEntry = [...auditEntries]
     .reverse()
     .find((e) =>
-      e.action === "webhook_verified" || e.action === "cash_confirmed" || e.action === "demo_verified"
+      e.action === "webhook_verified" ||
+      e.action === "cash_confirmed" ||
+      e.action === "cod_confirmed" ||
+      e.action === "demo_verified"
     );
 
   let verificationMode: VerificationMode = "unverified";
@@ -300,6 +349,15 @@ export function parseTransactionField(
 
   if (primaryRef.startsWith("WEBHOOK-VERIFIED-") || verifiedEntry?.action === "webhook_verified") {
     verificationMode = "provider_webhook";
+    isSimulated = false;
+  } else if (
+    provider === "cod" &&
+    (primaryRef.startsWith("COD-CONFIRMED-") || verifiedEntry?.action === "cod_confirmed" || status === "completed")
+  ) {
+    verificationMode = "cod_confirmed";
+    isSimulated = false;
+  } else if (provider === "cod") {
+    verificationMode = "unverified";
     isSimulated = false;
   } else if (
     provider === "cash" &&
@@ -418,7 +476,14 @@ export function normalizePaymentsWithLinks(
   const orderPaymentRows: Record<string, any>[] = [];
 
   for (const row of rawPaymentRows) {
-    if (isLoyaltyRecord(row) || isCartRecord(row) || isAuthCredentialRecord(row)) continue;
+    if (
+      isLoyaltyRecord(row) ||
+      isCartRecord(row) ||
+      isAuthCredentialRecord(row) ||
+      isDeliverySystemRecord(row)
+    ) {
+      continue;
+    }
     if (isRefundRecord(row)) {
       const parsedRef = parseRefundRecord(row);
       if (parsedRef.original_payment_id) {
@@ -452,8 +517,8 @@ export function normalizePaymentsWithLinks(
       orderByNumber.get(orderNumber.toUpperCase().trim()) ||
       null;
 
-    const status = normalizePaymentStatus(row.status);
     const provider = normalizeProvider(row.provider);
+    const status = normalizePaymentStatus(row.status, provider);
     const amount = Number(row.amount) || 0;
     const txMeta = parseTransactionField(row.transaction_id, row);
 
@@ -521,7 +586,7 @@ export function computePaymentStats(payments: NormalizedPayment[]): PaymentDashb
       } else {
         verifiedLiveCollected += amt;
       }
-    } else if (p.status === "pending") {
+    } else if (p.status === "pending" || p.status === "cod_pending") {
       pendingCount += 1;
       pendingAmount += amt;
     } else if (p.status === "failed") {

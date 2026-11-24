@@ -16,7 +16,14 @@ from app.modules.payments.schemas import (
 AUDIT_SEPARATOR = " || AUDIT:"
 REFUND_PREFIX = "REFUND-OF:"
 ONLINE_PROVIDERS = {"gcash", "maya", "card"}
-VALID_PROVIDERS = {"cash", "gcash", "maya", "card"}
+VALID_PROVIDERS = {"cash", "cod", "gcash", "maya", "card"}
+DELIVERY_SYSTEM_PROVIDERS = {
+    "delivery_zone",
+    "delivery_dispatch",
+    "customer_address",
+    "customer_notification",
+    "driver_profile",
+}
 
 
 def is_loyalty_record(rec: Dict[str, Any]) -> bool:
@@ -68,23 +75,38 @@ def is_auth_credential_record(rec: Dict[str, Any]) -> bool:
     )
 
 
+def is_delivery_system_record(rec: Dict[str, Any]) -> bool:
+    provider = str(rec.get("provider") or "").strip().lower()
+    payment_ref = str(rec.get("payment_ref") or "").strip().upper()
+    order_number = str(rec.get("order_number") or "").strip().upper()
+    return (
+        provider in DELIVERY_SYSTEM_PROVIDERS
+        or payment_ref.startswith(("ZONE-", "DLV-", "ADDR-", "NTF-", "DRV-"))
+        or order_number in {"DELIVERY-ZONE", "CUSTOMER-ADDRESS", "NOTIFICATION", "DRIVER-PROFILE"}
+    )
+
+
 def is_order_payment_record(rec: Dict[str, Any]) -> bool:
     return (
         not is_loyalty_record(rec)
         and not is_refund_record(rec)
         and not is_cart_record(rec)
         and not is_auth_credential_record(rec)
+        and not is_delivery_system_record(rec)
     )
 
 
-def normalize_payment_status(raw: Any) -> str:
+def normalize_payment_status(raw: Any, provider_raw: Any = None) -> str:
     s = str(raw or "pending").strip().lower()
+    p = str(provider_raw or "").strip().lower()
     if s in {"completed", "paid"}:
         return "completed"
     if s == "failed":
         return "failed"
     if s == "refunded":
         return "refunded"
+    if s == "cod_pending" or (p == "cod" and s == "pending"):
+        return "cod_pending"
     return "pending"
 
 

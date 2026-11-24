@@ -6,6 +6,7 @@ import {
   encodeTransactionField,
   isAuthCredentialRecord,
   isCartRecord,
+  isDeliverySystemRecord,
   isLoyaltyRecord,
   isRefundRecord,
   normalizePaymentStatus,
@@ -15,6 +16,10 @@ import {
   parseTransactionField,
   type PaymentAuditEntry,
 } from "@/lib/paymentLedger";
+import {
+  createCustomerNotification,
+  getDeliveryByOrderIdOrNumber,
+} from "@/lib/deliveryStore";
 
 const IMMUTABLE_FIELDS = [
   "amount",
@@ -84,7 +89,13 @@ export async function GET(
     const { id } = await params;
     const raw: any = await airtableGet("Payments", id);
 
-    if (isLoyaltyRecord(raw) || isCartRecord(raw) || isRefundRecord(raw) || isAuthCredentialRecord(raw)) {
+    if (
+      isLoyaltyRecord(raw) ||
+      isCartRecord(raw) ||
+      isRefundRecord(raw) ||
+      isAuthCredentialRecord(raw) ||
+      isDeliverySystemRecord(raw)
+    ) {
       return NextResponse.json(
         { detail: "Record is not a customer order payment transaction." },
         { status: 404 }
@@ -154,9 +165,9 @@ export async function PATCH(
         { status: 403 }
       );
     }
-    if (isAuthCredentialRecord(existing)) {
+    if (isAuthCredentialRecord(existing) || isDeliverySystemRecord(existing)) {
       return NextResponse.json(
-        { detail: "Internal authentication records cannot be accessed or modified." },
+        { detail: "Internal system records cannot be accessed or modified via the Payments API." },
         { status: 403 }
       );
     }
@@ -167,8 +178,8 @@ export async function PATCH(
       );
     }
 
-    const currentStatus = normalizePaymentStatus(existing.status);
     const provider = normalizeProvider(existing.provider);
+    const currentStatus = normalizePaymentStatus(existing.status, provider);
     const originalAmount = Number(existing.amount) || 0;
     const parsedTx = parseTransactionField(existing.transaction_id, existing);
     const nowIso = new Date().toISOString();
@@ -182,7 +193,12 @@ export async function PATCH(
       if (rawStatus === "failed") action = "mark_failed";
       else if (rawStatus === "refunded") action = "refund";
       else if (rawStatus === "completed" || rawStatus === "paid") {
-        action = provider === "cash" ? "confirm_cash" : "generic_complete_blocked";
+        action =
+          provider === "cash"
+            ? "confirm_cash"
+            : provider === "cod"
+              ? "confirm_cod"
+              : "generic_complete_blocked";
       } else {
         action = "unsupported";
       }
@@ -351,6 +367,90 @@ export async function PATCH(
       });
 
       await syncLinkedOrderPaymentStatus(existing, "paid");
+      const updatedNormalized = await fetchNormalizedPaymentById(id);
+      return NextResponse.json(updatedNormalized);
+    }
+
+    if (action === "confirm_cod") {
+      if (provider !== "cod") {
+        return NextResponse.json(
+          {
+            detail: `COD remittance confirmation is only permitted for Cash on Delivery payments (this transaction uses ${provider.toUpperCase()}).`,
+          },
+          { status: 403 }
+        );
+      }
+
+      const linkedDelivery = await getDeliveryByOrderIdOrNumber(
+        existing.order_id ? String(existing.order_id) : null,
+        existing.order_number ? String(existing.order_number) : null
+      );
+
+      if (linkedDelivery && linkedDelivery.delivery_status !== "DELIVERED") {
+        return NextResponse.json(
+          {
+            detail: `COD payment cannot be confirmed as PAID until delivery is completed (current delivery status: ${linkedDelivery.delivery_status}).`,
+          },
+          { status: 409 }
+        );
+      }
+
+      const receiptRef = String(body.receipt_reference || body.verification_reference || "")
+        .trim()
+        .replace(/[^A-Za-z0-9-_]/g, "")
+        .slice(0, 48);
+      const collectedInfo =
+        linkedDelivery?.cash_collected_amount !== null && linkedDelivery?.cash_collected_amount !== undefined
+          ? `Driver remitted ₱${Number(linkedDelivery.cash_collected_amount).toFixed(2)}.`
+          : "";
+      const note = String(
+        body.note ||
+          body.reason ||
+          `Cash on Delivery remittance verified and confirmed by ${admin.name}. ${collectedInfo}`.trim()
+      )
+        .trim()
+        .slice(0, 220);
+
+      const confirmedRef = receiptRef
+        ? `COD-CONFIRMED-${receiptRef}`
+        : `COD-CONFIRMED-${Date.now()}`;
+
+      const auditEntry: PaymentAuditEntry = {
+        at: nowIso,
+        action: "cod_confirmed",
+        status: "completed",
+        by: admin.name,
+        role: admin.role,
+        ref: confirmedRef,
+        reason: note,
+        amount: originalAmount,
+        is_simulated: false,
+      };
+
+      const nextTxField = encodeTransactionField(confirmedRef, [
+        ...parsedTx.auditEntries,
+        auditEntry,
+      ]);
+
+      await airtableUpdate("Payments", id, {
+        status: "completed",
+        transaction_id: nextTxField,
+      });
+
+      await syncLinkedOrderPaymentStatus(existing, "paid");
+
+      if (linkedDelivery) {
+        await createCustomerNotification({
+          customer_id: linkedDelivery.customer_id,
+          customer_email: linkedDelivery.customer_email,
+          order_id: linkedDelivery.order_id,
+          order_number: linkedDelivery.order_number,
+          event_type: "COD_PAID",
+          title: `COD Payment Confirmed (#${linkedDelivery.order_number})`,
+          message: `Your Cash on Delivery payment of ₱${originalAmount.toFixed(2)} has been verified and marked PAID.`,
+        });
+      }
+
       const updatedNormalized = await fetchNormalizedPaymentById(id);
       return NextResponse.json(updatedNormalized);
     }

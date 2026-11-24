@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { airtableGet, airtableUpdate, airtableList, airtableDelete } from "@/lib/airtable";
 import { escapeFormulaString, getAuthenticatedAdmin, getAuthenticatedUser } from "@/lib/serverAuth";
-import { isAuthCredentialRecord, isLoyaltyRecord } from "@/lib/paymentLedger";
+import { isAuthCredentialRecord, isDeliverySystemRecord, isLoyaltyRecord } from "@/lib/paymentLedger";
 
 export async function GET(
   req: NextRequest,
@@ -188,7 +188,13 @@ export async function DELETE(
       }
       const childPayments = await airtableList("Payments", `{order_id} = '${safeId}'`, true);
       for (const pay of childPayments) {
-        if (isAuthCredentialRecord(pay) || isLoyaltyRecord(pay)) continue;
+        if (
+          isAuthCredentialRecord(pay) ||
+          isLoyaltyRecord(pay) ||
+          (isDeliverySystemRecord(pay) && String(pay.provider || "").toLowerCase() !== "delivery_dispatch")
+        ) {
+          continue;
+        }
         await airtableDelete("Payments", pay.id).catch(() => {});
       }
     } catch {

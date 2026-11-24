@@ -51,6 +51,8 @@ export function formatMethodLabel(provider: string): string {
       return "Card";
     case "cash":
       return "Counter Cash";
+    case "cod":
+      return "Cash on Delivery (COD)";
     default:
       return String(provider || "—").toUpperCase();
   }
@@ -62,6 +64,14 @@ export function renderPaymentStatusBadge(status: NormalizedPayment["status"]) {
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 font-bold uppercase text-[10px] tracking-wider">
         <CheckCircle2 className="w-3 h-3 text-emerald-700" />
         <span>Completed</span>
+      </span>
+    );
+  }
+  if (status === "cod_pending") {
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-950 font-bold uppercase text-[10px] tracking-wider">
+        <Clock className="w-3 h-3 text-amber-700" />
+        <span>COD Pending</span>
       </span>
     );
   }
@@ -320,11 +330,13 @@ export function PaymentDetailDrawer({
                 <div className="text-[11px] text-[#573B2C]">
                   {livePayment.verification_mode === "cashier_counter"
                     ? "Authorized Counter Cashier"
-                    : livePayment.verification_mode === "provider_webhook"
-                      ? "Signed Provider Webhook"
-                      : livePayment.verification_mode === "demo_simulated"
-                        ? "Portfolio Demo Simulation (Not Real Funds)"
-                        : "Awaiting Verification"}
+                    : livePayment.verification_mode === "cod_confirmed"
+                      ? "Authorized COD Remittance Confirmation"
+                      : livePayment.verification_mode === "provider_webhook"
+                        ? "Signed Provider Webhook"
+                        : livePayment.verification_mode === "demo_simulated"
+                          ? "Portfolio Demo Simulation (Not Real Funds)"
+                          : "Awaiting Verification"}
                 </div>
               </div>
               <div className="sm:col-span-2">
@@ -464,19 +476,19 @@ export function PaymentDetailDrawer({
             </div>
           )}
 
-          {/* PENDING actions */}
-          {livePayment.status === "pending" && (
+          {/* PENDING or COD_PENDING actions */}
+          {(livePayment.status === "pending" || livePayment.status === "cod_pending") && (
             <div className="p-5 rounded-3xl border border-[#E5DACB] bg-white space-y-4 shadow-2xs">
               <div className="flex items-center justify-between">
                 <h3 className="font-serif text-lg font-bold text-[#173D2B]">
                   Authorized Verification Actions
                 </h3>
                 <span className="text-[10px] font-mono uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
-                  Pending Review
+                  {livePayment.status === "cod_pending" ? "COD Pending Remittance" : "Pending Review"}
                 </span>
               </div>
 
-              {livePayment.provider !== "cash" && (
+              {livePayment.provider !== "cash" && livePayment.provider !== "cod" && (
                 <div className="p-3.5 rounded-2xl bg-[#F5F0E7] border border-[#E5DACB] text-[11px] text-[#573B2C] space-y-1">
                   <p className="font-bold text-[#173D2B]">
                     Online Payment Security ({formatMethodLabel(livePayment.provider)}):
@@ -487,8 +499,17 @@ export function PaymentDetailDrawer({
                 </div>
               )}
 
+              {livePayment.provider === "cod" && (
+                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-[11px] text-amber-950 space-y-1">
+                  <p className="font-bold">Cash on Delivery (COD) Settlement Workflow:</p>
+                  <p>
+                    COD payments can only be confirmed as PAID after the assigned driver completes delivery and remits collected cash to an authorized cashier/manager.
+                  </p>
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-2">
-                {livePayment.provider === "cash" ? (
+                {livePayment.provider === "cash" || livePayment.provider === "cod" ? (
                   <button
                     type="button"
                     onClick={() =>
@@ -503,7 +524,11 @@ export function PaymentDetailDrawer({
                     }`}
                   >
                     <Banknote className="w-3.5 h-3.5" />
-                    <span>Confirm Counter Cash Received</span>
+                    <span>
+                      {livePayment.provider === "cod"
+                        ? "Confirm COD Cash Remitted"
+                        : "Confirm Counter Cash Received"}
+                    </span>
                   </button>
                 ) : (
                   <button
@@ -542,33 +567,45 @@ export function PaymentDetailDrawer({
                 </button>
               </div>
 
-              {activeActionPanel === "confirm_cash" && livePayment.provider === "cash" && (
+              {activeActionPanel === "confirm_cash" &&
+                (livePayment.provider === "cash" || livePayment.provider === "cod") && (
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
+                    const isCod = livePayment.provider === "cod";
                     void submitPaymentAction(
                       {
-                        action: "confirm_cash",
+                        action: isCod ? "confirm_cod" : "confirm_cash",
                         receipt_reference: cashReceiptRef.trim(),
-                        note: cashNote.trim() || "Counter cash received and verified by cashier.",
+                        note:
+                          cashNote.trim() ||
+                          (isCod
+                            ? "COD cash remitted by driver and confirmed by authorized cashier."
+                            : "Counter cash received and verified by cashier."),
                       },
-                      `Counter cash payment ${livePayment.payment_ref} confirmed with cashier audit trail.`
+                      isCod
+                        ? `COD payment ${livePayment.payment_ref} verified and marked PAID.`
+                        : `Counter cash payment ${livePayment.payment_ref} confirmed with cashier audit trail.`
                     );
                   }}
                   className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-3"
                 >
                   <p className="text-xs font-bold text-emerald-950">
-                    Authorized Cashier Confirmation ({formatPhp(livePayment.amount)})
+                    {livePayment.provider === "cod"
+                      ? `Authorized COD Remittance Confirmation (${formatPhp(livePayment.amount)})`
+                      : `Authorized Cashier Confirmation (${formatPhp(livePayment.amount)})`}
                   </p>
                   <div className="space-y-1">
                     <label className="text-[11px] font-semibold text-emerald-950 block">
-                      POS / Counter Receipt Reference (Optional)
+                      {livePayment.provider === "cod"
+                        ? "COD Remittance / Receipt Reference (Optional)"
+                        : "POS / Counter Receipt Reference (Optional)"}
                     </label>
                     <input
                       type="text"
                       value={cashReceiptRef}
                       onChange={(e) => setCashReceiptRef(e.target.value)}
-                      placeholder="e.g. RCPT-0412"
+                      placeholder={livePayment.provider === "cod" ? "e.g. COD-REM-0412" : "e.g. RCPT-0412"}
                       className="w-full px-3 py-2 rounded-xl border border-emerald-300 bg-white text-xs text-[#173D2B] font-mono"
                     />
                   </div>
@@ -580,7 +617,11 @@ export function PaymentDetailDrawer({
                       type="text"
                       value={cashNote}
                       onChange={(e) => setCashNote(e.target.value)}
-                      placeholder="Exact cash received at front register"
+                      placeholder={
+                        livePayment.provider === "cod"
+                          ? "Driver remitted exact cash after completing delivery"
+                          : "Exact cash received at front register"
+                      }
                       className="w-full px-3 py-2 rounded-xl border border-emerald-300 bg-white text-xs text-[#173D2B]"
                     />
                   </div>
@@ -589,12 +630,18 @@ export function PaymentDetailDrawer({
                     disabled={submittingAction}
                     className="px-5 py-2.5 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white text-xs font-semibold disabled:opacity-50 cursor-pointer"
                   >
-                    {submittingAction ? "Recording Verification..." : "Record Cashier Cash Confirmation"}
+                    {submittingAction
+                      ? "Recording Verification..."
+                      : livePayment.provider === "cod"
+                        ? "Confirm COD Payment as PAID"
+                        : "Record Cashier Cash Confirmation"}
                   </button>
                 </form>
               )}
 
-              {activeActionPanel === "verify_demo" && livePayment.provider !== "cash" && (
+              {activeActionPanel === "verify_demo" &&
+                livePayment.provider !== "cash" &&
+                livePayment.provider !== "cod" && (
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();

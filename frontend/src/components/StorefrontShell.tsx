@@ -14,9 +14,9 @@ import { Footer } from "@/components/Footer";
  */
 export function StorefrontShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isAdminRoute = pathname?.startsWith("/admin");
+  const isIsolatedPortal = pathname?.startsWith("/admin") || pathname?.startsWith("/driver");
 
-  if (isAdminRoute) {
+  if (isIsolatedPortal) {
     return <div className="min-h-screen flex flex-col bg-[#F5F0E7]">{children}</div>;
   }
 

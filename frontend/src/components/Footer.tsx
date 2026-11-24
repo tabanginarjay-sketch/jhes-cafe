@@ -176,6 +176,13 @@ export function Footer() {
               Contact Us
             </Link>
             <Link
+              href="/driver"
+              prefetch={false}
+              className="hover:text-[#C9AE8B] transition-colors font-medium"
+            >
+              Driver Portal
+            </Link>
+            <Link
               href="/admin"
               className="flex items-center gap-1.5 text-[#C9AE8B] hover:text-[#DECDB8] transition-colors font-medium"
             >

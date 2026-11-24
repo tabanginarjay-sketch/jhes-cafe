@@ -16,10 +16,21 @@ import {
   getCanonicalCustomer,
   reconcileCustomerLoyalty,
 } from "@/lib/customerPersistence";
+import {
+  createCustomerNotification,
+  createDeliveryRecord,
+  listDeliveries,
+  listDeliveryZones,
+  saveCustomerAddress,
+} from "@/lib/deliveryStore";
+import {
+  matchServiceableZone,
+  type DeliveryZone,
+} from "@/lib/deliveryTypes";
 
 const PRODUCTS_TABLE = "tblcQD4QoANpq0ytK";
-const ALLOWED_PAYMENT_METHODS = new Set(["gcash", "maya", "card", "cash"]);
-const ALLOWED_DINING_OPTIONS = new Set(["Dine-in", "Takeaway"]);
+const ALLOWED_PAYMENT_METHODS = new Set(["gcash", "maya", "card", "cash", "cod"]);
+const ALLOWED_DINING_OPTIONS = new Set(["Dine-in", "Takeaway", "Delivery"]);
 const SPECIAL_INSTRUCTIONS_MAX_LEN = 200;
 const IDEMPOTENCY_TTL_MS = 5 * 60 * 1000;
 
@@ -167,6 +178,44 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Enrich delivery orders with their linked DeliveryRecord and normalize COD payment status
+    const hasDeliveryOrders = records.some(
+      (ord: any) => String(ord.dining_option || "").toLowerCase().trim() === "delivery"
+    );
+    if (hasDeliveryOrders) {
+      try {
+        const deliveries = await listDeliveries(
+          !admin && resolvedCustomerId
+            ? { customerId: resolvedCustomerId, customerEmail: user?.email }
+            : undefined
+        );
+        const dlvByOrderId = new Map<string, any>();
+        const dlvByOrderNum = new Map<string, any>();
+        for (const d of deliveries) {
+          if (d.order_id) dlvByOrderId.set(String(d.order_id), d);
+          if (d.order_number) dlvByOrderNum.set(String(d.order_number).toUpperCase().trim(), d);
+        }
+        for (const ord of records) {
+          const dlv =
+            dlvByOrderId.get(String(ord.id)) ||
+            (ord.order_number ? dlvByOrderNum.get(String(ord.order_number).toUpperCase().trim()) : null) ||
+            null;
+          if (dlv) {
+            ord.delivery = dlv;
+            ord.delivery_fee = dlv.delivery_fee;
+          }
+          if (
+            String(ord.payment_method || "").toLowerCase().trim() === "cod" &&
+            String(ord.payment_status || "").toLowerCase().trim() === "pending"
+          ) {
+            ord.payment_status = "cod_pending";
+          }
+        }
+      } catch {
+        // Non-blocking delivery enrichment
+      }
+    }
+
     return NextResponse.json(records, {
       headers: {
         "Cache-Control": "no-store",
@@ -226,13 +275,117 @@ export async function POST(req: NextRequest) {
     const rawPaymentMethod = String(body.payment_method || "gcash").trim().toLowerCase();
     if (!ALLOWED_PAYMENT_METHODS.has(rawPaymentMethod)) {
       return NextResponse.json(
-        { detail: "Unsupported payment method. Choose GCash, Maya, Credit / Debit Card, or Counter Cash." },
+        {
+          detail:
+            "Unsupported payment method. Choose Cash on Delivery (COD), GCash, Maya, Credit / Debit Card, or Counter Cash.",
+        },
         { status: 400 }
       );
     }
 
     const rawDiningOption = String(body.dining_option || "Dine-in").trim();
-    const diningOption = ALLOWED_DINING_OPTIONS.has(rawDiningOption) ? rawDiningOption : "Dine-in";
+    if (!ALLOWED_DINING_OPTIONS.has(rawDiningOption)) {
+      return NextResponse.json(
+        { detail: "Unsupported dining preference. Allowed: Dine-in, Takeaway, Delivery." },
+        { status: 400 }
+      );
+    }
+    const diningOption = rawDiningOption;
+
+    if (rawPaymentMethod === "cod" && diningOption !== "Delivery") {
+      return NextResponse.json(
+        { detail: "Cash on Delivery (COD) is available only for Delivery orders." },
+        { status: 400 }
+      );
+    }
+    if (rawPaymentMethod === "cash" && diningOption === "Delivery") {
+      return NextResponse.json(
+        { detail: "For Delivery orders, please select Cash on Delivery (COD) or an online payment method." },
+        { status: 400 }
+      );
+    }
+
+    // Validate structured Delivery address & active serviceable zone on the backend BEFORE order creation
+    let matchedDeliveryZone: DeliveryZone | null = null;
+    let validatedDeliveryInput: {
+      recipient_name: string;
+      contact_number: string;
+      house_number: string;
+      street: string;
+      barangay: string;
+      city: string;
+      landmark: string;
+      delivery_instructions: string;
+      schedule_type: "asap" | "scheduled";
+      scheduled_window: string | null;
+      save_address: boolean;
+      address_label: string;
+    } | null = null;
+
+    if (diningOption === "Delivery") {
+      const addr = body.delivery_address || body.delivery || {};
+      const recipientName = String(addr.recipient_name || customerName).trim();
+      const contactNumber = String(addr.contact_number || body.customer_phone || "").trim();
+      const houseNumber = String(addr.house_number || "").trim();
+      const street = String(addr.street || "").trim();
+      const barangay = String(addr.barangay || "").trim();
+      const city = String(addr.city || "").trim();
+      const landmark = String(addr.landmark || "").trim().slice(0, 120);
+      const deliveryInstructions = String(addr.delivery_instructions || "").trim().slice(0, 240);
+      const scheduleType = String(addr.schedule_type || "asap").toLowerCase() === "scheduled" ? "scheduled" : "asap";
+      const scheduledWindow = scheduleType === "scheduled" ? String(addr.scheduled_window || "").trim().slice(0, 60) || null : null;
+
+      if (recipientName.length < 2) {
+        return NextResponse.json(
+          { detail: "Delivery recipient full name is required (at least 2 characters)." },
+          { status: 400 }
+        );
+      }
+      if (contactNumber.replace(/\D/g, "").length < 7) {
+        return NextResponse.json(
+          { detail: "A valid recipient contact number (at least 7 digits) is required for delivery." },
+          { status: 400 }
+        );
+      }
+      if (!houseNumber || !street || !barangay || !city) {
+        return NextResponse.json(
+          {
+            detail:
+              "Complete delivery address is required: house/building number, street, barangay, and city.",
+          },
+          { status: 400 }
+        );
+      }
+
+      const activeZones = await listDeliveryZones(true);
+      matchedDeliveryZone = matchServiceableZone(activeZones, city, barangay);
+      if (!matchedDeliveryZone) {
+        return NextResponse.json(
+          {
+            detail:
+              activeZones.length === 0
+                ? "Delivery is temporarily unavailable because no serviceable delivery zones are currently active."
+                : `Delivery is not available for Brgy. ${barangay}, ${city}. Please choose a configured serviceable delivery zone or switch to Takeaway / Dine-in.`,
+          },
+          { status: 400 }
+        );
+      }
+
+      validatedDeliveryInput = {
+        recipient_name: recipientName,
+        contact_number: contactNumber,
+        house_number: houseNumber,
+        street,
+        barangay: matchedDeliveryZone.barangay,
+        city: matchedDeliveryZone.city,
+        landmark,
+        delivery_instructions: deliveryInstructions,
+        schedule_type: scheduleType,
+        scheduled_window: scheduledWindow,
+        save_address: Boolean(addr.save_address),
+        address_label: String(addr.address_label || "Home").trim().slice(0, 40),
+      };
+    }
 
     const rawSpecialNotes = body.special_notes ? String(body.special_notes).trim() : "";
     if (rawSpecialNotes.length > SPECIAL_INSTRUCTIONS_MAX_LEN) {
@@ -377,13 +530,30 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 7. Optional Demo Promo Code (FIRSTSIP15 = 15% off)
+    // 7. Backend Delivery Zone Minimum Order Check + Authoritative Fee & Promo Calculation
+    // NEVER trust delivery_fee or total_amount submitted by the frontend!
+    let deliveryFee = 0;
+    if (diningOption === "Delivery" && matchedDeliveryZone) {
+      if (calculatedSubtotal < matchedDeliveryZone.min_order_amount) {
+        return NextResponse.json(
+          {
+            detail: `Minimum order amount for ${matchedDeliveryZone.area_label} is ₱${matchedDeliveryZone.min_order_amount.toFixed(2)} (current subtotal: ₱${calculatedSubtotal.toFixed(2)}).`,
+          },
+          { status: 400 }
+        );
+      }
+      deliveryFee = Math.round(Math.max(0, matchedDeliveryZone.delivery_fee) * 100) / 100;
+    }
+
     const rawPromo = String(body.promo_code || "").trim().toUpperCase();
     const promoApplied = rawPromo === BRAND_CONFIG.promo.code ? rawPromo : null;
     const discountAmount = promoApplied
       ? Math.round(calculatedSubtotal * BRAND_CONFIG.promo.discountRate)
       : 0;
-    const finalTotal = Math.max(0, Math.round((calculatedSubtotal - discountAmount) * 100) / 100);
+    const finalTotal = Math.max(
+      0,
+      Math.round((calculatedSubtotal + deliveryFee - discountAmount) * 100) / 100
+    );
 
     // Ensure unique JHE- order number
     let orderNumber =
@@ -412,27 +582,45 @@ export async function POST(req: NextRequest) {
       // Ignore collision lookup error
     }
 
-    const numericPhone = sanitizeNumericPhone(body.customer_phone);
+    const numericPhone = sanitizeNumericPhone(
+      validatedDeliveryInput?.contact_number || body.customer_phone
+    );
     const seatingZone = body.seating_zone ? String(body.seating_zone).trim().slice(0, 60) : "";
     const tableNumber = body.table_number ? String(body.table_number).trim().slice(0, 20) : "";
+    const pickupTimePreference = body.pickup_time_preference
+      ? String(body.pickup_time_preference).trim().slice(0, 60)
+      : "";
+
     const diningMeta =
       diningOption === "Dine-in"
         ? [seatingZone ? `Area: ${seatingZone}` : null, tableNumber ? `Table: ${tableNumber}` : null]
             .filter(Boolean)
             .join(", ")
-        : "Counter Pickup";
+        : diningOption === "Delivery" && validatedDeliveryInput && matchedDeliveryZone
+          ? `Delivery to ${validatedDeliveryInput.barangay}, ${validatedDeliveryInput.city} (Fee: ₱${deliveryFee}${
+              validatedDeliveryInput.scheduled_window
+                ? `, Window: ${validatedDeliveryInput.scheduled_window}`
+                : ", ASAP"
+            })`
+          : pickupTimePreference
+            ? `Counter Pickup (${pickupTimePreference})`
+            : "Counter Pickup";
 
     const specialNotes = [
       diningMeta || null,
       rawSpecialNotes || null,
+      validatedDeliveryInput?.delivery_instructions
+        ? `Delivery note: ${validatedDeliveryInput.delivery_instructions}`
+        : null,
       promoApplied ? `Promo applied: ${promoApplied} (-₱${discountAmount})` : null,
     ]
       .filter(Boolean)
       .join(" | ");
 
     // 8. Persist primary Order record in Airtable
-    // Strictly separate status ("pending") and payment_status ("pending"); NEVER trust client status
-    const orderFields: Record<string, unknown> = {
+    // Strictly separate status ("pending") and payment_status ("cod_pending" for COD, "pending" otherwise)
+    const authoritativePaymentStatus = rawPaymentMethod === "cod" ? "cod_pending" : "pending";
+    const baseOrderFields: Record<string, unknown> = {
       order_number: orderNumber,
       customer_name: customerName,
       ...(numericPhone !== undefined ? { customer_phone: numericPhone } : {}),
@@ -440,12 +628,25 @@ export async function POST(req: NextRequest) {
       dining_option: diningOption,
       status: "pending",
       payment_method: rawPaymentMethod,
-      payment_status: "pending",
+      payment_status: authoritativePaymentStatus,
       total_amount: finalTotal,
       ...(specialNotes ? { special_notes: specialNotes } : {}),
     };
 
-    const createdOrder: any = await airtableCreate("Orders", orderFields);
+    let createdOrder: any;
+    try {
+      createdOrder = await airtableCreate("Orders", baseOrderFields);
+    } catch (createErr) {
+      // Fallback cleanly if Airtable singleSelect payment_status lacks 'cod_pending' choice yet
+      if (rawPaymentMethod === "cod") {
+        createdOrder = await airtableCreate("Orders", {
+          ...baseOrderFields,
+          payment_status: "pending",
+        });
+      } else {
+        throw createErr;
+      }
+    }
 
     if (acquiredIdemTag) {
       recentIdempotencyOrders.set(acquiredIdemTag, {
@@ -479,12 +680,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 10. Create a matching PENDING payment record in Airtable Payments table
+    // 10. Create a matching PENDING / COD_PENDING payment record in Airtable Payments table
     let paymentRecord: any = null;
     try {
       const paymentRef = `PAY-2026-${Math.floor(10000 + Math.random() * 90000)}`;
       const txPrefix =
-        rawPaymentMethod === "cash" ? "COUNTER-CASH-PENDING" : "DEMO-SIMULATED-PENDING";
+        rawPaymentMethod === "cod"
+          ? "COD-PENDING"
+          : rawPaymentMethod === "cash"
+            ? "COUNTER-CASH-PENDING"
+            : "DEMO-SIMULATED-PENDING";
       const txId = `${txPrefix}-${orderNumber}${acquiredIdemTag ? `-${acquiredIdemTag}` : ""}`;
       paymentRecord = await airtableCreate("Payments", {
         payment_ref: paymentRef,
@@ -492,11 +697,72 @@ export async function POST(req: NextRequest) {
         order_number: orderNumber,
         amount: finalTotal,
         provider: rawPaymentMethod,
-        status: "pending", // NEVER mark paid/completed without verified confirmation
+        status: authoritativePaymentStatus, // "cod_pending" for COD, "pending" otherwise
         transaction_id: txId,
       });
     } catch (payErr) {
       console.warn("Payment record creation warning:", payErr);
+    }
+
+    // 10b. If Delivery order, create linked DeliveryRecord, optional saved address, and initial notification
+    let deliveryRecord: any = null;
+    if (diningOption === "Delivery" && validatedDeliveryInput && matchedDeliveryZone && verifiedCustomerEmail) {
+      try {
+        const canonicalCust = await getCanonicalCustomer(verifiedCustomerEmail, customerName);
+        deliveryRecord = await createDeliveryRecord({
+          order_id: String(createdOrder.id),
+          order_number: orderNumber,
+          customer_id: canonicalCust.id,
+          customer_email: canonicalCust.email,
+          recipient_name: validatedDeliveryInput.recipient_name,
+          contact_number: validatedDeliveryInput.contact_number,
+          house_number: validatedDeliveryInput.house_number,
+          street: validatedDeliveryInput.street,
+          barangay: validatedDeliveryInput.barangay,
+          city: validatedDeliveryInput.city,
+          landmark: validatedDeliveryInput.landmark,
+          delivery_instructions: validatedDeliveryInput.delivery_instructions,
+          zone_id: matchedDeliveryZone.id,
+          zone_label: matchedDeliveryZone.area_label,
+          delivery_fee: deliveryFee,
+          estimated_delivery_time: validatedDeliveryInput.scheduled_window
+            ? `${validatedDeliveryInput.scheduled_window} (${matchedDeliveryZone.estimated_minutes})`
+            : matchedDeliveryZone.estimated_minutes,
+          schedule_type: validatedDeliveryInput.schedule_type,
+          scheduled_window: validatedDeliveryInput.scheduled_window,
+          payment_method: rawPaymentMethod,
+          cod_amount_due: rawPaymentMethod === "cod" ? finalTotal : 0,
+        });
+
+        if (validatedDeliveryInput.save_address) {
+          await saveCustomerAddress({
+            customer_id: canonicalCust.id,
+            customer_email: canonicalCust.email,
+            label: validatedDeliveryInput.address_label,
+            recipient_name: validatedDeliveryInput.recipient_name,
+            contact_number: validatedDeliveryInput.contact_number,
+            house_number: validatedDeliveryInput.house_number,
+            street: validatedDeliveryInput.street,
+            barangay: validatedDeliveryInput.barangay,
+            city: validatedDeliveryInput.city,
+            landmark: validatedDeliveryInput.landmark,
+            delivery_instructions: validatedDeliveryInput.delivery_instructions,
+            is_default: false,
+          }).catch(() => {});
+        }
+
+        await createCustomerNotification({
+          customer_id: canonicalCust.id,
+          customer_email: canonicalCust.email,
+          order_id: String(createdOrder.id),
+          order_number: orderNumber,
+          event_type: "DELIVERY_ORDER_PLACED",
+          title: `Delivery Order #${orderNumber} Placed`,
+          message: `Your delivery order to ${matchedDeliveryZone.area_label} is queued (Pending Driver Assignment). Confirmation code: ${deliveryRecord.confirmation_code}.`,
+        });
+      } catch (dlvErr) {
+        console.error("Delivery dispatch record creation error:", dlvErr);
+      }
     }
 
     // 11. Accurate ingredient-based Inventory deduction
@@ -573,13 +839,20 @@ export async function POST(req: NextRequest) {
       {
         ...createdOrder,
         subtotal_before_discount: calculatedSubtotal,
+        delivery_fee: deliveryFee,
         promo_code: promoApplied,
         discount_amount: discountAmount,
         total_amount: finalTotal,
-        payment_status: "pending",
+        payment_status: authoritativePaymentStatus,
         status: "pending",
-        payment_mode: rawPaymentMethod === "cash" ? "counter_cash" : "demo_simulated",
+        payment_mode:
+          rawPaymentMethod === "cod"
+            ? "cash_on_delivery"
+            : rawPaymentMethod === "cash"
+              ? "counter_cash"
+              : "demo_simulated",
         payment: paymentRecord,
+        ...(deliveryRecord ? { delivery: deliveryRecord } : {}),
         inventory_updates: inventoryUpdates,
         loyalty_points_earned: pointsEarned,
         ...(updatedLoyaltyPoints !== null ? { updated_loyalty_points: updatedLoyaltyPoints } : {}),

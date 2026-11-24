@@ -4,6 +4,7 @@ import { getAuthenticatedAdmin } from "@/lib/serverAuth";
 import {
   isAuthCredentialRecord,
   isCartRecord,
+  isDeliverySystemRecord,
   isLoyaltyRecord,
   normalizePaymentsWithLinks,
   VALID_PAYMENT_PROVIDERS,
@@ -56,7 +57,11 @@ export async function GET(req: NextRequest) {
     let filtered = allOrderPayments;
 
     if (statusFilter && statusFilter !== "all") {
-      filtered = filtered.filter((p) => p.status === statusFilter);
+      filtered = filtered.filter((p) =>
+        statusFilter === "pending"
+          ? p.status === "pending" || p.status === "cod_pending"
+          : p.status === statusFilter
+      );
     }
     if (providerFilter && providerFilter !== "all") {
       filtered = filtered.filter((p) => p.provider === providerFilter);
@@ -145,8 +150,13 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // Strictly reject cart, loyalty, or internal credential payloads on the monetary Payments endpoint
-    if (isCartRecord(body) || isLoyaltyRecord(body) || isAuthCredentialRecord(body)) {
+    // Strictly reject cart, loyalty, or internal system payloads on the monetary Payments endpoint
+    if (
+      isCartRecord(body) ||
+      isLoyaltyRecord(body) ||
+      isAuthCredentialRecord(body) ||
+      isDeliverySystemRecord(body)
+    ) {
       return NextResponse.json(
         { detail: "Cart events, loyalty point transactions, and internal records cannot be recorded as monetary order payments." },
         { status: 400 }

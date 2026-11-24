@@ -128,7 +128,7 @@ export default function AdminOrdersPage() {
       setCreatingPaymentForOrderId(ord.id);
       setFeedback(null);
       const method = String(ord.payment_method || "cash").toLowerCase().trim();
-      const safeProvider = ["cash", "gcash", "maya", "card"].includes(method) ? method : "cash";
+      const safeProvider = ["cash", "cod", "gcash", "maya", "card"].includes(method) ? method : "cash";
       const res = await fetch(`${API_BASE_URL}/payments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -162,7 +162,7 @@ export default function AdminOrdersPage() {
   };
 
   const pendingPaymentsCount = useMemo(
-    () => payments.filter((p) => p.status === "pending").length,
+    () => payments.filter((p) => p.status === "pending" || p.status === "cod_pending").length,
     [payments]
   );
 
@@ -312,7 +312,21 @@ export default function AdminOrdersPage() {
                           <p className="text-[10px] text-[#573B2C]/70 font-mono">{ord.customer_email}</p>
                         )}
                       </td>
-                      <td className="p-4 font-medium">{ord.dining_option}</td>
+                      <td className="p-4 font-medium">
+                        <div>{ord.dining_option}</div>
+                        {String(ord.dining_option || "").toLowerCase() === "delivery" && (
+                          <Link
+                            href="/admin/deliveries"
+                            className="inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full bg-[#173D2B]/10 text-[#173D2B] text-[10px] font-semibold hover:bg-[#173D2B] hover:text-white transition-colors"
+                          >
+                            <span>
+                              {ord.delivery?.delivery_status
+                                ? ord.delivery.delivery_status.replaceAll("_", " ")
+                                : "Manage Dispatch"}
+                            </span>
+                          </Link>
+                        )}
+                      </td>
                       <td className="p-4 font-mono font-bold text-sm whitespace-nowrap">
                         ₱{Number(ord.total_amount || 0).toFixed(2)}
                       </td>
@@ -343,10 +357,12 @@ export default function AdminOrdersPage() {
                               )}
                               <span>{formatMethodLabel(payMethod)}</span>
                               <span className="text-[#315640] group-hover:underline inline-flex items-center ml-1 text-[10px]">
-                                {linkedPay.status === "pending"
-                                  ? payMethod === "cash"
-                                    ? "Verify Cash"
-                                    : "Verify"
+                                {linkedPay.status === "pending" || linkedPay.status === "cod_pending"
+                                  ? payMethod === "cod"
+                                    ? "Verify COD"
+                                    : payMethod === "cash"
+                                      ? "Verify Cash"
+                                      : "Verify"
                                   : "Inspect"}
                                 <ChevronRight className="w-3 h-3" />
                               </span>
