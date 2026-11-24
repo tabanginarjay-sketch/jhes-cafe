@@ -4,6 +4,7 @@ import { escapeFormulaString, getAuthenticatedAdmin } from "@/lib/serverAuth";
 import {
   encodeRefundTransactionId,
   encodeTransactionField,
+  isAuthCredentialRecord,
   isCartRecord,
   isLoyaltyRecord,
   isRefundRecord,
@@ -83,7 +84,7 @@ export async function GET(
     const { id } = await params;
     const raw: any = await airtableGet("Payments", id);
 
-    if (isLoyaltyRecord(raw) || isCartRecord(raw) || isRefundRecord(raw)) {
+    if (isLoyaltyRecord(raw) || isCartRecord(raw) || isRefundRecord(raw) || isAuthCredentialRecord(raw)) {
       return NextResponse.json(
         { detail: "Record is not a customer order payment transaction." },
         { status: 404 }
@@ -150,6 +151,12 @@ export async function PATCH(
     if (isRefundRecord(existing)) {
       return NextResponse.json(
         { detail: "Refund records are immutable audit entries and cannot be modified." },
+        { status: 403 }
+      );
+    }
+    if (isAuthCredentialRecord(existing)) {
+      return NextResponse.json(
+        { detail: "Internal authentication records cannot be accessed or modified." },
         { status: 403 }
       );
     }

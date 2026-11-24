@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { airtableList, airtableCreate } from "@/lib/airtable";
 import { getAuthenticatedAdmin } from "@/lib/serverAuth";
 import {
+  isAuthCredentialRecord,
   isCartRecord,
   isLoyaltyRecord,
   normalizePaymentsWithLinks,
@@ -144,10 +145,10 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // Strictly reject cart or loyalty payloads on the monetary Payments endpoint
-    if (isCartRecord(body) || isLoyaltyRecord(body)) {
+    // Strictly reject cart, loyalty, or internal credential payloads on the monetary Payments endpoint
+    if (isCartRecord(body) || isLoyaltyRecord(body) || isAuthCredentialRecord(body)) {
       return NextResponse.json(
-        { detail: "Cart events and loyalty point transactions cannot be recorded as monetary order payments." },
+        { detail: "Cart events, loyalty point transactions, and internal records cannot be recorded as monetary order payments." },
         { status: 400 }
       );
     }

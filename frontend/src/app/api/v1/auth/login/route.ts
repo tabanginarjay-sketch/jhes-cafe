@@ -6,8 +6,8 @@ import {
   signSessionToken,
   verifyPassword,
 } from "@/lib/serverAuth";
-import { serverPasswordStore } from "@/lib/passwordStore";
-import { reconcileCustomerLoyalty } from "@/lib/customerPersistence";
+import { getPersistentPasswordHash } from "@/lib/passwordStore";
+import { getCanonicalCustomer, reconcileCustomerLoyalty } from "@/lib/customerPersistence";
 
 export async function POST(req: NextRequest) {
   try {
@@ -67,9 +67,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const user: any = existing[0];
-    const storedHash: string | undefined =
-      user.password_hash || serverPasswordStore.get(email);
+    const canonical = await getCanonicalCustomer(email);
+    const user: any = existing.find((u: any) => u.id === canonical.id) || existing[0];
+    const storedHash = await getPersistentPasswordHash(user.id, email, user.password_hash);
 
     // NEVER authenticate without verifying a real stored password hash
     if (!storedHash || !verifyPassword(password, storedHash)) {

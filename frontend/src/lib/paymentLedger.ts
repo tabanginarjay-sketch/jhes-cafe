@@ -152,8 +152,24 @@ export function isCartRecord(rec: Record<string, any>): boolean {
   );
 }
 
+export function isAuthCredentialRecord(rec: Record<string, any>): boolean {
+  const provider = String(rec.provider || "").toLowerCase().trim();
+  const paymentRef = String(rec.payment_ref || "").toUpperCase().trim();
+  const orderNumber = String(rec.order_number || "").toUpperCase().trim();
+  return (
+    provider === "auth_credential" ||
+    paymentRef.startsWith("AUTH-CRED-") ||
+    orderNumber === "AUTH-CREDENTIAL"
+  );
+}
+
 export function isOrderPaymentRecord(rec: Record<string, any>): boolean {
-  return !isLoyaltyRecord(rec) && !isRefundRecord(rec) && !isCartRecord(rec);
+  return (
+    !isLoyaltyRecord(rec) &&
+    !isRefundRecord(rec) &&
+    !isCartRecord(rec) &&
+    !isAuthCredentialRecord(rec)
+  );
 }
 
 export function normalizePaymentStatus(raw?: unknown): NormalizedPaymentStatus {
@@ -402,7 +418,7 @@ export function normalizePaymentsWithLinks(
   const orderPaymentRows: Record<string, any>[] = [];
 
   for (const row of rawPaymentRows) {
-    if (isLoyaltyRecord(row) || isCartRecord(row)) continue;
+    if (isLoyaltyRecord(row) || isCartRecord(row) || isAuthCredentialRecord(row)) continue;
     if (isRefundRecord(row)) {
       const parsedRef = parseRefundRecord(row);
       if (parsedRef.original_payment_id) {

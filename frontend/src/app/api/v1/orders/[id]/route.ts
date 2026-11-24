@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { airtableGet, airtableUpdate, airtableList, airtableDelete } from "@/lib/airtable";
 import { escapeFormulaString, getAuthenticatedAdmin, getAuthenticatedUser } from "@/lib/serverAuth";
+import { isAuthCredentialRecord, isLoyaltyRecord } from "@/lib/paymentLedger";
 
 export async function GET(
   req: NextRequest,
@@ -180,6 +181,7 @@ export async function DELETE(
       }
       const childPayments = await airtableList("Payments", `{order_id} = '${safeId}'`, true);
       for (const pay of childPayments) {
+        if (isAuthCredentialRecord(pay) || isLoyaltyRecord(pay)) continue;
         await airtableDelete("Payments", pay.id).catch(() => {});
       }
     } catch {

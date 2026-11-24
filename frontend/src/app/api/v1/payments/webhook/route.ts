@@ -4,6 +4,7 @@ import { airtableGet, airtableList, airtableUpdate } from "@/lib/airtable";
 import { escapeFormulaString } from "@/lib/serverAuth";
 import {
   encodeTransactionField,
+  isAuthCredentialRecord,
   isCartRecord,
   isLoyaltyRecord,
   isRefundRecord,
@@ -77,10 +78,20 @@ export async function POST(req: NextRequest) {
     } else if (orderNumber) {
       const safeNum = escapeFormulaString(orderNumber);
       const matches = await airtableList("Payments", `{order_number} = '${safeNum}'`, true);
-      payment = matches.find((m: any) => !isLoyaltyRecord(m) && !isRefundRecord(m) && !isCartRecord(m)) || null;
+      payment =
+        matches.find(
+          (m: any) =>
+            !isLoyaltyRecord(m) && !isRefundRecord(m) && !isCartRecord(m) && !isAuthCredentialRecord(m)
+        ) || null;
     }
 
-    if (!payment || isLoyaltyRecord(payment) || isRefundRecord(payment) || isCartRecord(payment)) {
+    if (
+      !payment ||
+      isLoyaltyRecord(payment) ||
+      isRefundRecord(payment) ||
+      isCartRecord(payment) ||
+      isAuthCredentialRecord(payment)
+    ) {
       return NextResponse.json({ detail: "Order payment record not found." }, { status: 404 });
     }
 

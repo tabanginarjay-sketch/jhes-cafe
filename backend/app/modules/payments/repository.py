@@ -57,8 +57,24 @@ def is_cart_record(rec: Dict[str, Any]) -> bool:
     )
 
 
+def is_auth_credential_record(rec: Dict[str, Any]) -> bool:
+    provider = str(rec.get("provider") or "").strip().lower()
+    payment_ref = str(rec.get("payment_ref") or "").strip().upper()
+    order_number = str(rec.get("order_number") or "").strip().upper()
+    return (
+        provider == "auth_credential"
+        or payment_ref.startswith("AUTH-CRED-")
+        or order_number == "AUTH-CREDENTIAL"
+    )
+
+
 def is_order_payment_record(rec: Dict[str, Any]) -> bool:
-    return not is_loyalty_record(rec) and not is_refund_record(rec) and not is_cart_record(rec)
+    return (
+        not is_loyalty_record(rec)
+        and not is_refund_record(rec)
+        and not is_cart_record(rec)
+        and not is_auth_credential_record(rec)
+    )
 
 
 def normalize_payment_status(raw: Any) -> str:

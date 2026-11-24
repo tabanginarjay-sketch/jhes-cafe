@@ -9,7 +9,7 @@ import {
   signSessionToken,
   verifyPassword,
 } from "@/lib/serverAuth";
-import { serverPasswordStore } from "@/lib/passwordStore";
+import { getPersistentPasswordHash, savePersistentPasswordHash } from "@/lib/passwordStore";
 import { getCanonicalCustomer, reconcileCustomerLoyalty } from "@/lib/customerPersistence";
 
 export async function GET(req: NextRequest) {
@@ -67,19 +67,19 @@ export async function GET(req: NextRequest) {
 
     // Determine whether this account has an email+password hash configured
     const cleanEmail = canonical.email.toLowerCase().trim();
-    let hasPassword = Boolean(serverPasswordStore.get(cleanEmail));
-    if (!hasPassword) {
-      try {
-        const safeEmail = escapeFormulaString(cleanEmail);
-        const matches = await airtableList("Users", `LOWER({email}) = '${safeEmail}'`, true);
-        const target = matches.find((m: any) => m.id === canonical.id) || matches[0];
-        if (target && (target as any).password_hash) {
-          hasPassword = true;
-        }
-      } catch {
-        // Ignore lookup error
+    let userRecordHash: string | null = null;
+    try {
+      const safeEmail = escapeFormulaString(cleanEmail);
+      const matches = await airtableList("Users", `LOWER({email}) = '${safeEmail}'`, true);
+      const target = matches.find((m: any) => m.id === canonical.id) || matches[0];
+      if (target && (target as any).password_hash) {
+        userRecordHash = String((target as any).password_hash);
       }
+    } catch {
+      // Ignore lookup error
     }
+    const existingHash = await getPersistentPasswordHash(canonical.id, cleanEmail, userRecordHash);
+    const hasPassword = Boolean(existingHash);
 
     return NextResponse.json(
       {
@@ -184,8 +184,11 @@ export async function PATCH(req: NextRequest) {
       const safeEmail = escapeFormulaString(cleanEmail);
       const matches = await airtableList("Users", `LOWER({email}) = '${safeEmail}'`, true).catch(() => []);
       const targetUser: any = matches.find((m: any) => m.id === canonical.id) || matches[0];
-      const existingHash: string | undefined =
-        targetUser?.password_hash || serverPasswordStore.get(cleanEmail);
+      const existingHash = await getPersistentPasswordHash(
+        canonical.id,
+        cleanEmail,
+        targetUser?.password_hash
+      );
 
       if (existingHash) {
         const currentPassword = String(body.current_password || "");
@@ -198,7 +201,7 @@ export async function PATCH(req: NextRequest) {
       }
 
       const newHash = hashPassword(newPassword);
-      serverPasswordStore.set(cleanEmail, newHash);
+      await savePersistentPasswordHash(canonical.id, cleanEmail, newHash);
       passwordUpdated = true;
 
       // Best-effort persist to Airtable Users.password_hash if column exists
@@ -214,7 +217,8 @@ export async function PATCH(req: NextRequest) {
     }
 
     const reconciledPoints = await reconcileCustomerLoyalty(canonical.id, canonical.email);
-    const hasPassword = passwordUpdated || Boolean(serverPasswordStore.get(canonical.email.toLowerCase().trim()));
+    const hasPassword =
+      passwordUpdated || Boolean(await getPersistentPasswordHash(canonical.id, canonical.email));
 
     const updatedUser = {
       id: canonical.id,

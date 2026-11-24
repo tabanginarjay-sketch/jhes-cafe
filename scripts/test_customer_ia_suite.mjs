@@ -374,6 +374,20 @@ async function runCustomerIASuite() {
     console.log("==============================================================");
   } finally {
     console.log("\n[Cleanup] Removing temporary test records created by this verification run...");
+    // Also clean any temporary auth_credential records created for temporary test users
+    try {
+      const payRes = await fetch(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/Payments?filterByFormula=${encodeURIComponent("{provider} = 'auth_credential'")}`, {
+        headers: { Authorization: `Bearer ${AIRTABLE_PAT}` },
+      });
+      if (payRes.ok) {
+        const payData = await payRes.json();
+        for (const r of payData.records || []) {
+          if (cleanup.Users.includes(r.fields?.order_id) && !cleanup.Payments.includes(r.id)) {
+            cleanup.Payments.push(r.id);
+          }
+        }
+      }
+    } catch {}
     for (const id of cleanup.OrderItems) await airtableDelete("OrderItems", id);
     for (const id of cleanup.Payments) await airtableDelete("Payments", id);
     for (const id of cleanup.Orders) await airtableDelete("Orders", id);

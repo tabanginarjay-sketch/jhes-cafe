@@ -7,7 +7,7 @@ import {
   sanitizeNumericPhone,
   signSessionToken,
 } from "@/lib/serverAuth";
-import { serverPasswordStore } from "@/lib/passwordStore";
+import { savePersistentPasswordHash } from "@/lib/passwordStore";
 import { recordLoyaltyTransaction } from "@/lib/customerPersistence";
 
 export async function POST(req: NextRequest) {
@@ -78,7 +78,6 @@ export async function POST(req: NextRequest) {
     }
 
     const hashed = hashPassword(password);
-    serverPasswordStore.set(cleanEmail, hashed);
 
     // Strictly enforce role = "customer" — NEVER allow admin creation via public registration
     const coreFields: Record<string, unknown> = {
@@ -100,6 +99,9 @@ export async function POST(req: NextRequest) {
       // Fallback cleanly to the verified 5 Airtable Users columns
       airtableUser = await airtableCreate("Users", coreFields);
     }
+
+    // Persist salted scrypt hash durably across Vercel serverless containers
+    await savePersistentPasswordHash(airtableUser.id, cleanEmail, hashed);
 
     // Seed initial signup welcome transaction in ledger
     try {
