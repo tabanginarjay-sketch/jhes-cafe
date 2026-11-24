@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       const staffMatches = await airtableList("Staff", `LOWER({email}) = '${safeEmail}'`, true);
       const activeManager = staffMatches.find(
         (s: any) =>
-          s.is_active !== false &&
+          Boolean(s.is_active) &&
           ["admin", "manager"].includes(String(s.role || "").toLowerCase().trim())
       );
 
@@ -110,7 +110,7 @@ export async function POST(req: NextRequest) {
       const matches = await airtableList("Staff", `LOWER({email}) = '${safeEmail}'`, true);
       staffRecord = matches.find(
         (s: any) =>
-          s.is_active !== false &&
+          Boolean(s.is_active) &&
           ["admin", "manager"].includes(String(s.role || "").toLowerCase().trim())
       );
     } catch (err) {

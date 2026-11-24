@@ -20,7 +20,7 @@ export async function GET(
         slug,
         product_type: getProductType(record),
         image_url: getProductImage({ ...record, slug }),
-        is_available: record.is_available !== false,
+        is_available: Boolean(record.is_available),
       },
       { headers: { "Cache-Control": "no-store" } }
     );
@@ -75,7 +75,7 @@ export async function PATCH(
       slug,
       product_type: getProductType(updated),
       image_url: getProductImage({ ...updated, slug }),
-      is_available: updated.is_available !== false,
+      is_available: Boolean(updated.is_available),
     });
   } catch (err) {
     return NextResponse.json(

@@ -24,8 +24,8 @@ export async function PATCH(
     if (body.shift !== undefined) fields.shift = String(body.shift).trim();
     if (body.is_active !== undefined) fields.is_active = Boolean(body.is_active);
 
-    const updated = await airtableUpdate("Staff", id, fields);
-    return NextResponse.json(updated);
+    const updated: any = await airtableUpdate("Staff", id, fields);
+    return NextResponse.json({ ...updated, is_active: Boolean(updated.is_active) });
   } catch (err) {
     return NextResponse.json(
       { detail: err instanceof Error ? err.message : "Error updating staff record" },

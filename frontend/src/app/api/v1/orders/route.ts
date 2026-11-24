@@ -132,7 +132,8 @@ export async function POST(req: NextRequest) {
 
     for (const item of items) {
       const liveProd = findLiveProduct(item);
-      if (liveProd && liveProd.is_available === false) {
+      // Airtable omits unchecked checkbox keys (undefined === false)
+      if (liveProd && !Boolean(liveProd.is_available)) {
         return NextResponse.json(
           { detail: `"${liveProd.name}" is currently unavailable and cannot be ordered.` },
           { status: 400 }

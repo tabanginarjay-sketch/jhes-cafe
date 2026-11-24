@@ -421,7 +421,10 @@ export function dedupeAndMergeCatalog(
         canonical && (!raw.tasting_notes || String(raw.tasting_notes).length < canonical.tasting_notes.length)
           ? canonical.tasting_notes
           : raw.tasting_notes || canonical?.tasting_notes || "Artisanal single origin roast",
-      is_available: raw.is_available !== false,
+      is_available:
+        raw.id && String(raw.id).startsWith("rec")
+          ? Boolean(raw.is_available)
+          : raw.is_available !== false,
       tag: canonical?.tag || raw.tag || "Fresh",
       image_url: getProductImage({ ...canonical, ...raw, slug: canonical?.slug || canonicalSlug }),
     };

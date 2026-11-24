@@ -15,6 +15,7 @@ export async function GET() {
         seen.add(key);
         return true;
       })
+      .map((c: any) => ({ ...c, is_active: Boolean(c.is_active) }))
       .sort((a: any, b: any) => (Number(a.display_order) || 99) - (Number(b.display_order) || 99));
 
     return NextResponse.json(unique, {

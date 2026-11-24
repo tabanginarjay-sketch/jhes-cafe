@@ -138,6 +138,7 @@ class ProductRepository(BaseAirtableRepository[ProductResponse, ProductCreate, P
         slug = resolve_slug(name)
         fields["slug"] = fields.get("slug") or slug
         fields["product_type"] = fields.get("product_type") or resolve_product_type(name, cat_name)
+        fields["is_available"] = bool(fields.get("is_available", False))
         
         # Ensure image_url is always resolved and high-resolution
         img = fields.get("image_url")

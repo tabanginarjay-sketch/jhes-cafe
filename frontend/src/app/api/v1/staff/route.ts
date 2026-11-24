@@ -13,7 +13,8 @@ export async function GET(req: NextRequest) {
 
   try {
     const records = await airtableList("Staff", undefined, true);
-    return NextResponse.json(records, {
+    const normalized = records.map((r: any) => ({ ...r, is_active: Boolean(r.is_active) }));
+    return NextResponse.json(normalized, {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (err) {

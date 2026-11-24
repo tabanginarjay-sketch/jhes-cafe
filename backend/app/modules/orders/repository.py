@@ -171,7 +171,7 @@ class OrderRepository(BaseAirtableRepository[OrderResponse, OrderCreate, OrderUp
         for item in order_data.items:
             name_lower = item.product_name.strip().lower()
             live_prod = live_products.get(name_lower)
-            if live_prod and live_prod.get("is_available") is False:
+            if live_prod and not bool(live_prod.get("is_available", False)):
                 raise HTTPException(
                     status_code=400,
                     detail=f"'{item.product_name}' is currently unavailable.",
