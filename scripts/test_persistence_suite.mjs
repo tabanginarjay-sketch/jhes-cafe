@@ -1,6 +1,6 @@
 import assert from "node:assert";
 
-const BASE_URL = "http://localhost:3005";
+const BASE_URL = process.env.BASE_URL || "http://localhost:3005";
 
 async function runPersistenceSuite() {
   console.log("=== JHE'S CAFE' — ACCOUNT & CART PERSISTENCE TEST SUITE ===");
