@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import {
   X,
@@ -9,12 +10,9 @@ import {
   ShoppingBag,
   ArrowRight,
   Lock,
-  UserPlus,
   Sliders,
   Flame,
   Snowflake,
-  Coffee,
-  Sparkles,
 } from "lucide-react";
 import { useCart, CartItem } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
@@ -33,6 +31,21 @@ export function CartDrawer() {
   } = useCart();
   const { user } = useAuth();
 
+  // Escape key close & scroll lock when drawer is open
+  useEffect(() => {
+    if (!isCartOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsCartOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [isCartOpen, setIsCartOpen]);
+
   if (!isCartOpen) return null;
 
   const handleEditItem = (item: CartItem) => {
@@ -41,18 +54,18 @@ export function CartDrawer() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden">
+    <div className="fixed inset-0 z-50 overflow-hidden" role="dialog" aria-modal="true" aria-label="Order bag">
       {/* Backdrop Overlay */}
       <div
-        className="absolute inset-0 bg-[#0F2A1D]/60 backdrop-blur-xs transition-opacity"
+        className="absolute inset-0 bg-[#0F2A1D]/60 backdrop-blur-xs animate-fade-in"
         onClick={() => setIsCartOpen(false)}
       />
 
       <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-md bg-[#FFFCF7] shadow-2xl flex flex-col border-l border-[#E5DACB]">
-          
+        <div className="w-screen max-w-md bg-[#FFFCF7] shadow-2xl flex flex-col border-l border-[#E5DACB] animate-drawer-in">
+
           {/* Header */}
-          <div className="px-6 py-5 border-b border-[#E5DACB] flex items-center justify-between bg-[#F5F0E7]/80">
+          <div className="px-6 py-5 border-b border-[#E5DACB] flex items-center justify-between bg-[#F5F0E7]/85">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-full bg-[#173D2B] flex items-center justify-center text-[#C9AE8B] shadow-xs">
                 <ShoppingBag className="w-4 h-4" />
@@ -80,7 +93,7 @@ export function CartDrawer() {
           {/* Cart Item List */}
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3.5">
             {items.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4">
+              <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4 animate-fade-in">
                 <div className="w-16 h-16 rounded-full bg-[#F5F0E7] flex items-center justify-center text-[#573B2C]">
                   <ShoppingBag className="w-8 h-8 opacity-40" />
                 </div>
@@ -92,19 +105,19 @@ export function CartDrawer() {
                     Select any handcrafted espresso, slow-steeped cold brew, or fresh French viennoiserie pastry to customize.
                   </p>
                 </div>
-                <button
-                  type="button"
+                <Link
+                  href="/menu"
                   onClick={() => setIsCartOpen(false)}
-                  className="mt-2 text-xs font-semibold uppercase tracking-wider text-[#173D2B] underline underline-offset-4 hover:text-[#315640]"
+                  className="mt-2 text-xs font-semibold uppercase tracking-wider text-[#173D2B] nav-link-underline hover:text-[#315640]"
                 >
                   Browse Menu →
-                </button>
+                </Link>
               </div>
             ) : (
               items.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-2xl border border-[#E5DACB] bg-white p-3.5 sm:p-4 space-y-3 shadow-xs hover:border-[#C9AE8B] transition-all"
+                  className="rounded-2xl border border-[#E5DACB] bg-white p-3.5 sm:p-4 space-y-3 shadow-xs hover:border-[#C9AE8B] hover:shadow-sm transition-all duration-300"
                 >
                   <div className="flex items-start gap-3">
                     {/* Item Thumbnail */}
@@ -154,14 +167,34 @@ export function CartDrawer() {
                             {item.sweetness}% sweet
                           </span>
                         )}
-                        {item.extraShots && item.extraShots > 0 && (
+                        {item.extraShots !== undefined && item.extraShots > 0 && (
                           <span className="px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-900 border border-emerald-200 font-semibold">
-                            +{item.extraShots} Shot
+                            +{item.extraShots} Shot{item.extraShots > 1 ? "s" : ""}
+                          </span>
+                        )}
+                        {item.toppings && item.toppings.length > 0 && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-[#173D2B]/10 text-[#173D2B]">
+                            +{item.toppings.length} topping{item.toppings.length > 1 ? "s" : ""}
+                          </span>
+                        )}
+                        {item.servingStyle && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-[#F5F0E7] border border-[#E5DACB]">
+                            {item.servingStyle}
+                          </span>
+                        )}
+                        {item.finishes && item.finishes.length > 0 && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-900 border border-emerald-200">
+                            +{item.finishes.length} finish{item.finishes.length > 1 ? "es" : ""}
                           </span>
                         )}
                         {item.warming && (
                           <span className="px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-900 border border-amber-200">
                             {item.warming}
+                          </span>
+                        )}
+                        {item.addOns && item.addOns.length > 0 && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-900 border border-emerald-200">
+                            +{item.addOns.length} add-on{item.addOns.length > 1 ? "s" : ""}
                           </span>
                         )}
                       </div>
@@ -200,7 +233,7 @@ export function CartDrawer() {
                       <button
                         type="button"
                         onClick={() => handleEditItem(item)}
-                        className="text-[11px] font-semibold text-[#173D2B] hover:text-[#315640] flex items-center gap-1 p-1 hover:underline cursor-pointer"
+                        className="text-[11px] font-semibold text-[#173D2B] hover:text-[#315640] flex items-center gap-1 p-1 hover:underline cursor-pointer transition-colors"
                       >
                         <Sliders className="w-3 h-3 text-[#C9AE8B]" />
                         <span>Edit</span>
@@ -209,7 +242,7 @@ export function CartDrawer() {
                       <button
                         type="button"
                         onClick={() => removeItem(item.id)}
-                        className="text-[11px] text-rose-800/80 hover:text-rose-900 flex items-center gap-1 p-1 hover:underline cursor-pointer"
+                        className="text-[11px] text-rose-800/80 hover:text-rose-900 flex items-center gap-1 p-1 hover:underline cursor-pointer transition-colors"
                       >
                         <Trash2 className="w-3 h-3" />
                         <span>Remove</span>
@@ -235,7 +268,9 @@ export function CartDrawer() {
                 </div>
                 <div className="flex justify-between text-base font-bold text-[#173D2B] pt-2 border-t border-[#E5DACB]">
                   <span className="font-serif">Total Due</span>
-                  <span className="font-mono text-xl text-[#173D2B]">₱{subtotal}</span>
+                  <span key={subtotal} className="font-mono text-xl text-[#173D2B] animate-price-bump">
+                    ₱{subtotal}
+                  </span>
                 </div>
               </div>
 
@@ -244,7 +279,7 @@ export function CartDrawer() {
                 <Link
                   href="/cart"
                   onClick={() => setIsCartOpen(false)}
-                  className="w-full py-2.5 rounded-xl border border-[#173D2B] text-[#173D2B] hover:bg-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 transition-all"
+                  className="w-full py-2.5 rounded-xl border border-[#173D2B] text-[#173D2B] hover:bg-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 transition-all duration-200"
                 >
                   <span>Review Order in Cart Page</span>
                 </Link>
@@ -255,7 +290,7 @@ export function CartDrawer() {
                 <Link
                   href="/order"
                   onClick={() => setIsCartOpen(false)}
-                  className="w-full rounded-full bg-[#173D2B] hover:bg-[#315640] text-[#F5F0E7] py-3.5 px-4 font-semibold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all shadow-md active:scale-98"
+                  className="w-full rounded-full bg-[#173D2B] hover:bg-[#315640] text-[#F5F0E7] py-3.5 px-4 font-semibold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all duration-300 shadow-md hover:shadow-lg active:scale-95"
                 >
                   <span>Proceed to Checkout</span>
                   <ArrowRight className="w-4 h-4 text-[#C9AE8B]" />

@@ -170,6 +170,16 @@ export default function CartPage() {
                             +{item.toppings.length} topping(s)
                           </span>
                         )}
+                        {item.servingStyle && (
+                          <span className="px-2 py-0.5 rounded-lg bg-[#F5F0E7] border border-[#E5DACB]">
+                            {item.servingStyle}
+                          </span>
+                        )}
+                        {item.finishes && item.finishes.length > 0 && (
+                          <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-900 border border-emerald-200">
+                            +{item.finishes.length} finish(es)
+                          </span>
+                        )}
                         {item.warming && (
                           <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-200">
                             {item.warming}
@@ -275,7 +285,7 @@ export default function CartPage() {
                       <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                       <span>Loyalty Beans Earned</span>
                     </span>
-                    <span className="font-mono font-bold">+{Math.floor(subtotal / 10)} pts</span>
+                    <span className="font-mono font-bold">+{Math.floor(subtotal / 50)} pts</span>
                   </div>
 
                   <div className="flex justify-between items-baseline pt-4 border-t border-[#E5DACB] text-[#173D2B]">

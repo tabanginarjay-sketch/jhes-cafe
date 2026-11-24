@@ -1,50 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
 import { airtableList, airtableCreate } from "@/lib/airtable";
-import { CENTRALIZED_CATALOG, getProductImage } from "@/lib/productRegistry";
+import {
+  CENTRALIZED_CATALOG,
+  dedupeAndMergeCatalog,
+  getProductImage,
+  resolveCanonicalSlug,
+} from "@/lib/productRegistry";
 import { getProductType } from "@/lib/productCustomization";
 
 export async function GET(req: NextRequest) {
+  const category = req.nextUrl.searchParams.get("category");
   try {
-    const category = req.nextUrl.searchParams.get("category");
     const formula = category ? `{category_name} = '${category}'` : undefined;
     const records = await airtableList("tblcQD4QoANpq0ytK", formula, true);
 
-    // Enrich records with canonical slug, product_type, and verified high-res image
-    const enriched = (records || []).map((r: any) => {
-      const pType = getProductType(r);
-      const slug = (r.name || "coffee")
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)/g, "");
-
-      return {
-        ...r,
-        slug: r.slug || slug,
-        product_type: r.product_type || pType,
-        image_url: getProductImage(r),
-        is_available: r.is_available !== false,
-      };
+    // Strictly deduplicate & merge with canonical catalog so no duplicate slugs/names ever occur
+    const merged = dedupeAndMergeCatalog(records || [], {
+      category,
+      includeMissingCanonical: true,
     });
 
-    // If Airtable has fewer items, include missing canonical items
-    if (!category) {
-      const existingSlugs = new Set(enriched.map((e: any) => e.slug));
-      for (const item of CENTRALIZED_CATALOG) {
-        if (!existingSlugs.has(item.slug)) {
-          enriched.push(item);
-        }
-      }
-    }
-
-    return NextResponse.json(enriched, {
+    return NextResponse.json(merged, {
       headers: {
         "Cache-Control": "public, max-age=30, stale-while-revalidate=120",
         "X-Content-Type-Options": "nosniff",
       },
     });
-  } catch (err) {
-    // If Airtable query fails, fallback cleanly to CENTRALIZED_CATALOG
-    return NextResponse.json(CENTRALIZED_CATALOG, {
+  } catch {
+    // Fallback cleanly to CENTRALIZED_CATALOG (filtered if category requested)
+    const fallback = category
+      ? CENTRALIZED_CATALOG.filter((item) => item.category_name === category)
+      : CENTRALIZED_CATALOG;
+
+    return NextResponse.json(fallback, {
       headers: {
         "Cache-Control": "public, max-age=30, stale-while-revalidate=120",
       },
@@ -55,10 +43,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const slug = (body.name || "coffee")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/(^-|-$)/g, "");
+    const slug = resolveCanonicalSlug(body.name || "coffee");
 
     const created = await airtableCreate("tblcQD4QoANpq0ytK", {
       name: body.name,
@@ -75,7 +60,7 @@ export async function POST(req: NextRequest) {
       {
         ...created,
         slug,
-        image_url: getProductImage(body),
+        image_url: getProductImage({ ...body, slug }),
         product_type: getProductType(body),
       },
       { status: 201 }

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Sliders, Plus, Check, Coffee, Flame, Snowflake, Sparkles } from "lucide-react";
+import { useState, useRef } from "react";
+import { Sliders, Plus, Check, Coffee, Flame, Snowflake } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { ScrollReveal } from "@/components/common/ScrollReveal";
+import { resolveCanonicalSlug } from "@/lib/productRegistry";
 
 const BASE_OPTIONS = [
   {
@@ -39,28 +40,29 @@ const BASE_OPTIONS = [
 ];
 
 const SIZES = [
-  { name: "Tall 12oz", volume: "355ml", delta: 0, label: "Base" },
-  { name: "Grande 16oz", volume: "473ml", delta: 30, label: "+₱30" },
-  { name: "Venti 20oz", volume: "591ml", delta: 50, label: "+₱50" },
+  { name: "Tall 12oz", volume: "355ml", delta: -20, label: "-₱20" },
+  { name: "Grande 16oz", volume: "473ml", delta: 0, label: "Standard" },
+  { name: "Venti 20oz", volume: "591ml", delta: 30, label: "+₱30" },
 ];
 
 const MILKS = [
-  { name: "Fresh Whole Milk", sub: "Rich Creamy Dairy", delta: 0, label: "Included" },
-  { name: "Barista Oat Milk", sub: "Organic Oat, Naturally Sweet", delta: 35, label: "+₱35" },
-  { name: "Roasted Almond Milk", sub: "Nutty Roasted Profile", delta: 35, label: "+₱35" },
+  { name: "Whole Milk", sub: "Rich Creamy Dairy", delta: 0, label: "Included" },
+  { name: "Barista Oat Milk", sub: "Organic Oat, Naturally Sweet", delta: 40, label: "+₱40" },
+  { name: "Roasted Almond Milk", sub: "Nutty Roasted Profile", delta: 40, label: "+₱40" },
 ];
 
 export function HomeCustomizer() {
   const [selectedBase, setSelectedBase] = useState(BASE_OPTIONS[0]);
   const [size, setSize] = useState<"Tall 12oz" | "Grande 16oz" | "Venti 20oz">("Grande 16oz");
   const [temperature, setTemperature] = useState<"Hot" | "Iced">("Hot");
-  const [milk, setMilk] = useState<"Fresh Whole Milk" | "Barista Oat Milk" | "Roasted Almond Milk">("Fresh Whole Milk");
+  const [milk, setMilk] = useState<"Whole Milk" | "Barista Oat Milk" | "Roasted Almond Milk">("Whole Milk");
   const [sweetness, setSweetness] = useState<number>(50);
   const [isAdded, setIsAdded] = useState(false);
+  const addButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const { addItem } = useCart();
 
-  // Price calculations
+  // Price calculations (matches menu Standard Grande base pricing)
   const sizeFee = SIZES.find((s) => s.name === size)?.delta || 0;
   const milkFee = MILKS.find((m) => m.name === milk)?.delta || 0;
   const currentPrice = selectedBase.basePrice + sizeFee + milkFee;
@@ -73,23 +75,30 @@ export function HomeCustomizer() {
     setSelectedBase(item);
     if (item.name.toLowerCase().includes("cold brew")) {
       setTemperature("Iced");
+      if (size === "Tall 12oz") setSize("Grande 16oz");
     }
   };
 
   const handleAdd = () => {
-    const slug = selectedBase.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-    addItem({
-      productId: slug,
-      slug: slug,
-      name: selectedBase.name,
-      price: currentPrice,
-      size,
-      temperature: isColdBrew ? "Iced" : temperature,
-      milk: milk,
-      sweetness: sweetness,
-      imageUrl: activeImage,
-      customizationSummary: `${size} · ${isColdBrew ? "Iced" : temperature} · ${milk} · ${sweetness}% sweet`,
-    });
+    const slug = resolveCanonicalSlug(selectedBase.name);
+    addItem(
+      {
+        productId: slug,
+        slug: slug,
+        name: selectedBase.name,
+        category: isColdBrew ? "Cold Brews" : "Signature Espresso",
+        basePrice: selectedBase.basePrice,
+        price: currentPrice,
+        size,
+        temperature: isColdBrew ? "Iced" : temperature,
+        milk: milk,
+        sweetness: sweetness,
+        imageUrl: activeImage,
+        customizationSummary: `${size} · ${isColdBrew ? "Iced" : temperature} · ${milk} · ${sweetness}% sweet`,
+      },
+      1,
+      addButtonRef.current
+    );
     setIsAdded(true);
     setTimeout(() => setIsAdded(false), 1600);
   };
@@ -405,12 +414,13 @@ export function HomeCustomizer() {
                   <span className="text-[10px] text-[#573B2C] block font-medium uppercase tracking-wider">
                     Calculated Price
                   </span>
-                  <span className="font-serif text-3xl font-bold text-[#173D2B]">
+                  <span key={currentPrice} className="font-serif text-3xl font-bold text-[#173D2B] inline-block animate-price-bump">
                     ₱{currentPrice}
                   </span>
                 </div>
 
                 <button
+                  ref={addButtonRef}
                   type="button"
                   onClick={handleAdd}
                   className={`inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full text-xs font-bold tracking-wider uppercase transition-all duration-300 shadow-md hover:shadow-xl hover:scale-[1.02] active:scale-95 cursor-pointer ${isAdded

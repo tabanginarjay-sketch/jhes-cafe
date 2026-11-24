@@ -1,4 +1,4 @@
-import { ProductType } from "./productCustomization";
+import { ProductType, getProductType } from "./productCustomization";
 
 export interface CatalogProduct {
   id: string;
@@ -218,6 +218,53 @@ const DEFAULT_FALLBACK_IMAGE =
   "https://images.unsplash.com/photo-1541167760496-1628856ab772?auto=format&fit=crop&w=800&q=80";
 
 /**
+ * Resolves any product name or slug variant into its canonical catalog slug.
+ * Eliminates duplicate menu items caused by Airtable vs. registry slug mismatches.
+ */
+export function resolveCanonicalSlug(nameOrSlug?: string | null): string {
+  const raw = (nameOrSlug || "coffee")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+
+  if (!raw) return "coffee";
+
+  // Check exact match in centralized catalog first
+  const exact = CENTRALIZED_CATALOG.find(
+    (p) =>
+      p.slug.toLowerCase() === raw ||
+      p.id.toLowerCase() === raw ||
+      p.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") === raw
+  );
+  if (exact) return exact.slug;
+
+  // Semantic canonical slug normalization (matches backend repository rules)
+  if (raw.includes("affogato")) return "single-origin-affogato-al-caffe";
+  if (raw.includes("barako")) return "barako-espresso-romano";
+  if (raw.includes("spanish")) return "spanish-latte-dulce";
+  if (raw.includes("shaken") || raw.includes("brown-sugar")) return "iced-brown-sugar-shaken-espresso";
+  if (raw.includes("kyoto")) return "kyoto-drip-slow-pour-cold-brew";
+  if (raw.includes("tagaytay-cloud") || (raw.includes("cloud") && raw.includes("cold"))) {
+    return "tagaytay-cloud-coldbrew";
+  }
+  if (raw.includes("salted") && raw.includes("honey")) return "salted-honey-latte";
+  if (raw.includes("tablea") || raw.includes("mocha")) return "tagaytay-tablea-mocha";
+  if (raw.includes("matcha")) return "highland-uji-matcha-latte";
+  if (raw.includes("cacao") && (raw.includes("doughnut") || raw.includes("donut"))) {
+    return "dark-cacao-ganache-brioche-doughnut";
+  }
+  if (raw.includes("vanilla-bean-glazed") || raw.includes("glazed-heritage")) {
+    return "glazed-heritage-doughnut";
+  }
+  if (raw.includes("cheesecake")) return "burnt-basque-cheesecake";
+  if (raw.includes("strawberry") && raw.includes("croissant")) return "strawberry-pistachio-croissant";
+  if (raw.includes("rosemary") && raw.includes("croissant")) return "rosemary-butter-croissant";
+
+  return raw;
+}
+
+/**
  * Returns the exact, consistent image for any product across the entire application.
  * Guaranteed never to return wrong breakfast photos or placeholders.
  */
@@ -235,7 +282,12 @@ export function getProductImage(product?: {
   const targetKey = (product.slug || product.id || "").toLowerCase();
 
   // 1. Specific accurate photograph overrides for each product
-  if (nameLower.includes("vanilla bean glazed") || nameLower.includes("glazed doughnut") || targetKey.includes("glazed-heritage") || targetKey.includes("vanilla-bean-glazed")) {
+  if (
+    nameLower.includes("vanilla bean glazed") ||
+    nameLower.includes("glazed doughnut") ||
+    targetKey.includes("glazed-heritage") ||
+    targetKey.includes("vanilla-bean-glazed")
+  ) {
     return "/images/products/vanilla-bean-glazed-doughnut.jpg";
   }
   if (nameLower.includes("dark cacao") && nameLower.includes("doughnut")) {
@@ -259,13 +311,20 @@ export function getProductImage(product?: {
 
   // 2. Direct valid image if provided (not the old wrong unsplash doughnut photo)
   const directImage = product.image_url || product.image || product.imageUrl;
-  if (directImage && directImage.startsWith("/") || (directImage && directImage.startsWith("http") && !directImage.includes("photo-1527515862127-a4fc05baf7a5"))) {
+  if (
+    (directImage && directImage.startsWith("/")) ||
+    (directImage &&
+      directImage.startsWith("http") &&
+      !directImage.includes("photo-1527515862127-a4fc05baf7a5"))
+  ) {
     return directImage;
   }
 
-  // 3. Lookup in centralized catalog by slug, id, or name
+  // 3. Lookup in centralized catalog by canonical slug, id, or name
+  const canonicalSlug = resolveCanonicalSlug(product.slug || product.name || product.id);
   const match = CENTRALIZED_CATALOG.find(
     (p) =>
+      p.slug.toLowerCase() === canonicalSlug ||
       p.slug.toLowerCase() === targetKey ||
       p.id.toLowerCase() === targetKey ||
       (product.name && p.name.toLowerCase() === product.name.toLowerCase())
@@ -296,12 +355,107 @@ export function getProductImage(product?: {
 }
 
 /**
- * Finds a product in the centralized catalog by slug, id, or name.
+ * Finds a product in the centralized catalog by slug, alias slug, id, or name.
  */
 export function getCanonicalProduct(identifier: string): CatalogProduct | undefined {
   if (!identifier) return undefined;
-  const key = identifier.toLowerCase();
+  const key = identifier.toLowerCase().trim();
+  const canonicalSlug = resolveCanonicalSlug(key);
   return CENTRALIZED_CATALOG.find(
-    (p) => p.slug.toLowerCase() === key || p.id.toLowerCase() === key || p.name.toLowerCase() === key
+    (p) =>
+      p.slug.toLowerCase() === key ||
+      p.slug.toLowerCase() === canonicalSlug ||
+      p.id.toLowerCase() === key ||
+      p.name.toLowerCase() === key
   );
+}
+
+/**
+ * Strictly deduplicates API records against CENTRALIZED_CATALOG by canonical slug & normalized name.
+ * Preserves live Airtable IDs/prices/availability while enriching missing metadata and ensuring
+ * curated ordering with zero duplicate items.
+ */
+export function dedupeAndMergeCatalog(
+  apiItems: any[] = [],
+  options?: { category?: string | null; includeMissingCanonical?: boolean }
+): CatalogProduct[] {
+  const includeMissing = options?.includeMissingCanonical !== false;
+  const categoryFilter = options?.category?.trim() || null;
+
+  const byCanonicalSlug = new Map<string, CatalogProduct>();
+  const seenNormalizedNames = new Set<string>();
+
+  for (const raw of apiItems || []) {
+    if (!raw || !raw.name) continue;
+    const normalizedName = String(raw.name).trim().toLowerCase().replace(/\s+/g, " ");
+    const canonicalSlug = resolveCanonicalSlug(raw.name || raw.slug);
+
+    // Strictly skip duplicates by either slug or normalized name
+    if (byCanonicalSlug.has(canonicalSlug) || seenNormalizedNames.has(normalizedName)) {
+      continue;
+    }
+
+    const canonical = getCanonicalProduct(canonicalSlug) || getCanonicalProduct(raw.name);
+    const resolvedType = getProductType({
+      name: raw.name,
+      category_name: raw.category_name || canonical?.category_name,
+      product_type: raw.product_type || canonical?.product_type,
+    });
+
+    const roastRaw = raw.roast_level;
+    const resolvedRoast =
+      roastRaw && String(roastRaw).toLowerCase() !== "none"
+        ? String(roastRaw)
+        : canonical?.roast_level || "House Craft";
+
+    const product: CatalogProduct = {
+      id: raw.id || canonical?.id || canonicalSlug,
+      name: canonical?.name || String(raw.name).trim(),
+      slug: canonical?.slug || canonicalSlug,
+      category_name: raw.category_name || canonical?.category_name || "Signature Espresso",
+      product_type: resolvedType,
+      price: Number(raw.price) || canonical?.price || 200,
+      origin: raw.origin || canonical?.origin || "Highland Harvest",
+      roast_level: resolvedRoast,
+      tasting_notes:
+        canonical && (!raw.tasting_notes || String(raw.tasting_notes).length < canonical.tasting_notes.length)
+          ? canonical.tasting_notes
+          : raw.tasting_notes || canonical?.tasting_notes || "Artisanal single origin roast",
+      is_available: raw.is_available !== false,
+      tag: canonical?.tag || raw.tag || "Fresh",
+      image_url: getProductImage({ ...canonical, ...raw, slug: canonical?.slug || canonicalSlug }),
+    };
+
+    byCanonicalSlug.set(product.slug, product);
+    seenNormalizedNames.add(normalizedName);
+    seenNormalizedNames.add(product.name.toLowerCase());
+  }
+
+  // Merge missing canonical catalog items (without ever duplicating)
+  if (includeMissing) {
+    for (const item of CENTRALIZED_CATALOG) {
+      const normName = item.name.toLowerCase().trim();
+      if (!byCanonicalSlug.has(item.slug) && !seenNormalizedNames.has(normName)) {
+        if (!categoryFilter || item.category_name === categoryFilter) {
+          byCanonicalSlug.set(item.slug, item);
+          seenNormalizedNames.add(normName);
+        }
+      }
+    }
+  }
+
+  // Sort in curated canonical order, placing any brand-new admin items cleanly at the end
+  const canonicalOrder = new Map(CENTRALIZED_CATALOG.map((p, idx) => [p.slug, idx]));
+  const result = Array.from(byCanonicalSlug.values()).sort((a, b) => {
+    const idxA = canonicalOrder.has(a.slug) ? canonicalOrder.get(a.slug)! : 999;
+    const idxB = canonicalOrder.has(b.slug) ? canonicalOrder.get(b.slug)! : 999;
+    if (idxA !== idxB) return idxA - idxB;
+    return a.name.localeCompare(b.name);
+  });
+
+  if (categoryFilter) {
+    return result.filter((item) => item.category_name === categoryFilter);
+  }
+
+  return result;
 }

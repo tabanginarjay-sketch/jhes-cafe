@@ -141,7 +141,7 @@ class ProductRepository(BaseAirtableRepository[ProductResponse, ProductCreate, P
         
         # Ensure image_url is always resolved and high-resolution
         img = fields.get("image_url")
-        if not img or not img.startswith("http"):
+        if not img or not (img.startswith("http") or img.startswith("/")):
             fields["image_url"] = PRODUCT_IMAGE_MAP.get(slug, DEFAULT_IMAGE)
 
         return self.response_model.model_validate(fields)

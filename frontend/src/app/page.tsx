@@ -60,7 +60,7 @@ export default function Home() {
           </div>
 
           {showDiagnostics && (
-            <div className="mt-6 pt-6 border-t border-[#E5DACB] animate-fadeIn">
+            <div className="mt-6 pt-6 border-t border-[#E5DACB] animate-slide-down">
               <HealthStatusCard />
             </div>
           )}

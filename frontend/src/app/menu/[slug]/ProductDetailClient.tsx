@@ -24,16 +24,10 @@ import {
 import { useCart } from "@/context/CartContext";
 import { API_BASE_URL } from "@/lib/api";
 import {
-  getProductType,
   getProductCustomizationRules,
-  ProductType,
-  DRINK_SIZES,
-  COLD_BREW_SIZES,
-  DRINK_TEMPERATURES,
-  DRINK_MILKS,
+  getDefaultSize,
   SWEETNESS_PRESETS,
   EXTRA_SHOTS,
-  DRINK_TOPPINGS,
   CAKE_SERVING_OPTIONS,
   CAKE_FINISHES,
   DOUGHNUT_GLAZES,
@@ -44,6 +38,7 @@ import {
   CENTRALIZED_CATALOG,
   getProductImage,
   getCanonicalProduct,
+  resolveCanonicalSlug,
   CatalogProduct,
 } from "@/lib/productRegistry";
 
@@ -85,11 +80,13 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         if (res.ok) {
           const list = await res.json();
           if (Array.isArray(list)) {
+            const targetCanonical = resolveCanonicalSlug(slug);
             const match = list.find(
               (p: any) =>
                 p.slug === slug ||
+                p.slug === targetCanonical ||
                 p.id === slug ||
-                p.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") === slug
+                resolveCanonicalSlug(p.name) === targetCanonical
             );
             if (match) {
               setProduct((prev) => ({
@@ -131,9 +128,9 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const [quantity, setQuantity] = useState<number>(1);
   const [isAdded, setIsAdded] = useState(false);
 
-  // Initialize defaults according to rules
+  // Initialize defaults according to rules (Standard Grande size = delta 0)
   useEffect(() => {
-    setSize(rules.supportedSizes[0]?.name || "Grande 16oz");
+    setSize(getDefaultSize(rules));
     setTemperature(rules.defaultTemperature || "Hot");
     setMilk("Whole Milk");
     setSweetness(50);
@@ -161,7 +158,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   }
 
   if (rules.allowsExtraShots) {
-    const shotObj = EXTRA_SHOTS.find((s) => (s as any).count === extraShots);
+    const shotObj = EXTRA_SHOTS.find((s) => s.count === extraShots);
     if (shotObj) calculatedUnitPrice += shotObj.delta;
   }
 
@@ -257,6 +254,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         slug: product.slug,
         name: product.name,
         category: product.category_name || rules.categoryLabel,
+        basePrice: product.price,
         price: calculatedUnitPrice,
         quantity,
         imageUrl: resolvedImage,
@@ -560,15 +558,15 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   </label>
                   <div className="grid grid-cols-3 gap-3">
                     {EXTRA_SHOTS.map((s) => {
-                      const isSelected = extraShots === (s as any).count;
+                      const isSelected = extraShots === s.count;
                       return (
                         <button
-                          key={(s as any).count}
+                          key={s.id}
                           type="button"
-                          onClick={() => setExtraShots((s as any).count)}
-                          className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${
+                          onClick={() => setExtraShots(s.count)}
+                          className={`p-3 rounded-2xl border text-center transition-all duration-200 cursor-pointer active:scale-95 ${
                             isSelected
-                              ? "bg-[#173D2B] text-white border-[#173D2B] shadow-sm ring-1 ring-[#C9AE8B]"
+                              ? "bg-[#173D2B] text-white border-[#173D2B] shadow-sm ring-2 ring-[#C9AE8B]"
                               : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#315640]"
                           }`}
                         >
@@ -945,7 +943,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                   <p className="text-[10px] uppercase font-mono tracking-wider text-[#573B2C]">
                     Calculated Total
                   </p>
-                  <p className="font-serif text-3xl font-bold text-[#173D2B]">
+                  <p key={totalPrice} className="font-serif text-3xl font-bold text-[#173D2B] animate-price-bump">
                     ₱{totalPrice}
                   </p>
                 </div>
@@ -957,7 +955,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 type="button"
                 disabled={isAddingToCart}
                 onClick={handleAdd}
-                className="w-full py-4 rounded-full bg-[#173D2B] hover:bg-[#315640] disabled:opacity-50 text-white text-xs font-semibold uppercase tracking-wider transition-all shadow-md hover:shadow-lg active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-4 rounded-full bg-[#173D2B] hover:bg-[#315640] disabled:opacity-50 text-white text-xs font-semibold uppercase tracking-wider transition-all duration-300 shadow-md hover:shadow-lg hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isAdded ? (
                   <>
@@ -981,6 +979,70 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           </div>
 
         </div>
+
+        {/* Curated Perfect Pairings Section */}
+        <section className="mt-16 pt-12 border-t border-[#E5DACB] space-y-6">
+          <div className="flex items-end justify-between gap-4">
+            <div className="space-y-1">
+              <span className="text-[10px] font-mono font-bold uppercase tracking-[0.2em] text-[#315640]">
+                Barista Recommended
+              </span>
+              <h2 className="font-serif text-2xl sm:text-3xl font-bold text-[#173D2B]">
+                Pair It With
+              </h2>
+            </div>
+            <Link
+              href="/menu"
+              className="text-xs font-semibold uppercase tracking-wider text-[#173D2B] hover:text-[#315640] nav-link-underline"
+            >
+              Browse Full Menu →
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            {CENTRALIZED_CATALOG.filter(
+              (p) =>
+                p.slug !== product.slug &&
+                (["doughnut", "cake", "pastry"].includes(rules.productType)
+                  ? !["doughnut", "cake", "pastry"].includes(p.product_type)
+                  : ["doughnut", "cake", "pastry"].includes(p.product_type))
+            )
+              .slice(0, 3)
+              .map((pairing) => (
+                <Link
+                  key={pairing.slug}
+                  href={`/menu/${pairing.slug}`}
+                  className="group rounded-2xl border border-[#E5DACB] bg-white overflow-hidden hover-card-elevate hover:border-[#C9AE8B] flex flex-col"
+                >
+                  <div className="relative h-44 w-full overflow-hidden bg-[#173D2B]">
+                    <img
+                      src={getProductImage(pairing)}
+                      alt={pairing.name}
+                      loading="lazy"
+                      className="w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-108"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+                    <span className="absolute top-3 left-3 px-2.5 py-0.5 rounded-full bg-[#173D2B]/90 text-[#C9AE8B] text-[9px] font-mono font-bold uppercase tracking-wider">
+                      {pairing.category_name}
+                    </span>
+                  </div>
+                  <div className="p-4 flex-1 flex flex-col justify-between space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-serif text-base font-bold text-[#173D2B] group-hover:text-[#315640] transition-colors">
+                        {pairing.name}
+                      </h3>
+                      <span className="font-mono text-sm font-bold text-[#173D2B] shrink-0">
+                        ₱{pairing.price}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#573B2C] line-clamp-2">
+                      {pairing.tasting_notes}
+                    </p>
+                  </div>
+                </Link>
+              ))}
+          </div>
+        </section>
       </div>
     </div>
   );

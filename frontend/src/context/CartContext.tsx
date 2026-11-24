@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
-import { getProductImage } from "@/lib/productRegistry";
+import { getProductImage, getCanonicalProduct } from "@/lib/productRegistry";
 
 export interface CartItem {
   id: string;
@@ -9,6 +9,7 @@ export interface CartItem {
   slug?: string;
   name: string;
   category?: string;
+  basePrice?: number;
   price: number;
   quantity: number;
   imageUrl?: string;
@@ -85,6 +86,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [flyingItem, setFlyingItem] = useState<FlyingFlyData | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const flyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load from local storage
   useEffect(() => {
@@ -118,7 +120,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    toastTimeoutRef.current = setTimeout(() => {
       setToastMessage(null);
     }, 2800);
   }, []);
@@ -131,17 +136,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const cartBtn = document.getElementById("navbar-cart-btn");
       const cartRect = cartBtn ? cartBtn.getBoundingClientRect() : null;
 
+      const startTop = sourceRect.top + sourceRect.height / 2 - 36;
+      const startLeft = sourceRect.left + sourceRect.width / 2 - 36;
+
       const targetX = cartRect
-        ? cartRect.left + cartRect.width / 2 - (sourceRect.left + sourceRect.width / 2)
-        : window.innerWidth - sourceRect.left - 60;
+        ? cartRect.left + cartRect.width / 2 - (startLeft + 36)
+        : window.innerWidth - startLeft - 60;
       const targetY = cartRect
-        ? cartRect.top + cartRect.height / 2 - (sourceRect.top + sourceRect.height / 2)
-        : -sourceRect.top + 30;
+        ? cartRect.top + cartRect.height / 2 - (startTop + 36)
+        : -startTop + 30;
 
       setFlyingItem({
         imageUrl,
-        startTop: sourceRect.top,
-        startLeft: sourceRect.left,
+        startTop,
+        startLeft,
         targetX,
         targetY,
       });
@@ -159,7 +167,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           void btn.offsetWidth; // trigger reflow
           btn.classList.add("animate-cart-pop");
         }
-      }, 700);
+      }, 720);
     },
     []
   );
@@ -182,15 +190,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       name: itemData.name,
       id: productId,
     });
+    const canonical = getCanonicalProduct(baseSlug) || getCanonicalProduct(itemData.name);
+    const resolvedBasePrice = itemData.basePrice ?? canonical?.price ?? itemData.price;
 
     // 1. Launch smooth curved fly-to-cart animation immediately (0ms)
     triggerFlyAnimation(resolvedImage, sourceElement);
 
     // 2. Toast feedback
-    showToast(`Added to your bag! • ${itemData.name}`);
+    showToast(`Added to your bag • ${itemData.name}`);
 
-    // 3. Strict signature: guarantees that different customizations of the same product
-    // (e.g. Spanish Latte Grande Hot 50% vs Tall Iced 100%) remain distinct line items
+    // 3. Strict signature: guarantees that different customizations of the same product remain distinct line items
     const signature = [
       productId,
       itemData.size || "standard",
@@ -211,6 +220,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       slug: baseSlug,
       name: itemData.name,
       category: itemData.category || "Specialty Item",
+      basePrice: resolvedBasePrice,
       price: itemData.price,
       quantity: qty,
       imageUrl: resolvedImage,
@@ -258,23 +268,23 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return [...prev, completeItem];
     });
 
-    // 4. Open cart drawer strictly AFTER flight completes (750ms)
+    // 4. Open cart drawer strictly AFTER flight completes
     setTimeout(() => {
       setIsCartOpen(true);
       setIsAddingToCart(false);
-    }, 750);
+    }, 740);
   };
 
   const updateItem = (id: string, updatedFields: Partial<CartItem>) => {
     setItems((prev) =>
       prev.map((item) => {
         if (item.id === id) {
-          const merged = { ...item, ...updatedFields };
-          return merged;
+          return { ...item, ...updatedFields };
         }
         return item;
       })
     );
+    showToast("Recipe updated in your bag");
   };
 
   const updateQuantity = (id: string, delta: number) => {
@@ -342,22 +352,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             {
               top: flyingItem.startTop,
               left: flyingItem.startLeft,
-              "--fly-target-x": `${flyingItem.targetX}px`,
-              "--fly-target-y": `${flyingItem.targetY}px`,
+              "--target-x": `${flyingItem.targetX}px`,
+              "--target-y": `${flyingItem.targetY}px`,
             } as React.CSSProperties
           }
         >
           <img
             src={flyingItem.imageUrl}
             alt="Adding item"
-            className="w-16 h-16 sm:w-20 sm:h-20 object-cover"
+            className="w-16 h-16 sm:w-18 sm:h-18 object-cover"
           />
         </div>
       )}
 
       {/* Confirmation Toast */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-[9998] flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-[#173D2B] text-white border border-[#C9AE8B]/40 shadow-2xl animate-fade-in-up">
+        <div
+          key={toastMessage}
+          className="fixed bottom-6 right-6 z-[9998] flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-[#173D2B] text-white border border-[#C9AE8B]/40 shadow-2xl animate-fade-in-up"
+        >
           <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
           <span className="text-xs font-medium tracking-wide">{toastMessage}</span>
         </div>

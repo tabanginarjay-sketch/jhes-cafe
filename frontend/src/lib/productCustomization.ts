@@ -12,6 +12,10 @@ export interface SizeOption extends CustomOption {
   volume: string;
 }
 
+export interface ShotOption extends CustomOption {
+  count: number;
+}
+
 export interface TempOption {
   id: "Hot" | "Iced";
   name: string;
@@ -50,10 +54,10 @@ export const SWEETNESS_PRESETS = [
   { level: 100, label: "100% Extra Sweet" },
 ];
 
-export const EXTRA_SHOTS: CustomOption[] = [
-  { id: "shot-0", name: "Standard 2 Shots", delta: 0, label: "Included" },
-  { id: "shot-1", name: "+1 Extra Shot", delta: 45, label: "+₱45" },
-  { id: "shot-2", name: "+2 Extra Shots", delta: 85, label: "+₱85" },
+export const EXTRA_SHOTS: ShotOption[] = [
+  { id: "shot-0", count: 0, name: "Standard 2 Shots", delta: 0, label: "Included" },
+  { id: "shot-1", count: 1, name: "+1 Extra Shot", delta: 45, label: "+₱45" },
+  { id: "shot-2", count: 2, name: "+2 Extra Shots", delta: 85, label: "+₱85" },
 ];
 
 export const DRINK_TOPPINGS: CustomOption[] = [
@@ -112,6 +116,14 @@ export interface ProductCustomizationRules {
   allowsDoughnutOptions: boolean;
   allowsPastryOptions: boolean;
   categoryLabel: string;
+}
+
+/**
+ * Returns the standard (delta === 0) size name for a drink's rules.
+ */
+export function getDefaultSize(rules: ProductCustomizationRules): string {
+  const standard = rules.supportedSizes.find((s) => s.delta === 0);
+  return standard?.name || rules.supportedSizes[0]?.name || "Grande 16oz";
 }
 
 /**
@@ -178,6 +190,8 @@ export function getProductCustomizationRules(product: {
   product_type?: string;
 }): ProductCustomizationRules {
   const productType = getProductType(product);
+  const nameLower = (product.name || "").toLowerCase();
+  const isSignatureIced = nameLower.includes("iced") || nameLower.includes("shaken");
 
   switch (productType) {
     case "coffee":
@@ -187,7 +201,7 @@ export function getProductCustomizationRules(product: {
         supportedSizes: DRINK_SIZES,
         allowsTemperature: true,
         supportedTemperatures: DRINK_TEMPERATURES,
-        defaultTemperature: "Hot",
+        defaultTemperature: isSignatureIced ? "Iced" : "Hot",
         allowsMilk: true,
         supportedMilks: DRINK_MILKS,
         allowsSweetness: true,
@@ -227,7 +241,7 @@ export function getProductCustomizationRules(product: {
         supportedSizes: DRINK_SIZES,
         allowsTemperature: true,
         supportedTemperatures: DRINK_TEMPERATURES,
-        defaultTemperature: "Hot",
+        defaultTemperature: isSignatureIced ? "Iced" : "Hot",
         allowsMilk: true,
         supportedMilks: DRINK_MILKS,
         allowsSweetness: true,

@@ -1,11 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Check, Filter, Sliders, Sparkles, Coffee } from "lucide-react";
+import { Sliders, Search, X, Sparkles, ArrowUpRight, Coffee } from "lucide-react";
 import { useCart } from "@/context/CartContext";
 import { API_BASE_URL } from "@/lib/api";
-import { CENTRALIZED_CATALOG, getProductImage, CatalogProduct } from "@/lib/productRegistry";
+import {
+  CENTRALIZED_CATALOG,
+  dedupeAndMergeCatalog,
+  getProductImage,
+  CatalogProduct,
+} from "@/lib/productRegistry";
 
 const CATEGORIES = [
   "All",
@@ -17,40 +22,19 @@ const CATEGORIES = [
 
 export default function MenuPage() {
   const [activeCategory, setActiveCategory] = useState("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const [menuItems, setMenuItems] = useState<CatalogProduct[]>(CENTRALIZED_CATALOG);
   const { setQuickCustomizeProduct } = useCart();
 
   useEffect(() => {
+    let isActive = true;
     async function loadMenu() {
       try {
         const res = await fetch(`${API_BASE_URL}/catalog/products`);
-        if (res.ok) {
+        if (res.ok && isActive) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
-            const mapped: CatalogProduct[] = data.map((item: any) => ({
-              id: item.id,
-              name: item.name,
-              slug: item.slug || item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-              category_name: item.category_name || "Signature Espresso",
-              product_type: item.product_type || "coffee",
-              price: Number(item.price) || 200,
-              origin: item.origin || "Highland Harvest",
-              roast_level: item.roast_level || "Medium Roast",
-              tasting_notes: item.tasting_notes || "Artisanal single origin roast",
-              is_available: item.is_available !== false,
-              tag: item.tag || "Fresh",
-              image_url: getProductImage(item),
-            }));
-
-            // Merge with centralized catalog items so items not yet in API table are still available
-            const existingSlugs = new Set(mapped.map((m) => m.slug));
-            const merged = [...mapped];
-            for (const item of CENTRALIZED_CATALOG) {
-              if (!existingSlugs.has(item.slug)) {
-                merged.push(item);
-              }
-            }
-            setMenuItems(merged);
+            setMenuItems(dedupeAndMergeCatalog(data, { includeMissingCanonical: true }));
           }
         }
       } catch {
@@ -58,26 +42,49 @@ export default function MenuPage() {
       }
     }
     void loadMenu();
+    return () => {
+      isActive = false;
+    };
   }, []);
 
-  const filteredItems =
-    activeCategory === "All"
-      ? menuItems
-      : menuItems.filter((i) => i.category_name === activeCategory);
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { All: menuItems.length };
+    for (const cat of CATEGORIES.slice(1)) {
+      counts[cat] = menuItems.filter((item) => item.category_name === cat).length;
+    }
+    return counts;
+  }, [menuItems]);
+
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return menuItems.filter((item) => {
+      const matchesCat = activeCategory === "All" || item.category_name === activeCategory;
+      if (!matchesCat) return false;
+      if (!q) return true;
+      return (
+        item.name.toLowerCase().includes(q) ||
+        item.tasting_notes.toLowerCase().includes(q) ||
+        item.origin.toLowerCase().includes(q) ||
+        item.category_name.toLowerCase().includes(q) ||
+        (item.tag && item.tag.toLowerCase().includes(q))
+      );
+    });
+  }, [menuItems, activeCategory, searchQuery]);
 
   const handleCustomize = (item: CatalogProduct) => {
     setQuickCustomizeProduct(item);
   };
 
   return (
-    <div className="py-16 sm:py-24 bg-[#FFFCF7]">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-        
+    <div className="py-16 sm:py-24 bg-[#FFFCF7] min-h-screen">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10 sm:space-y-12">
+
         {/* Page Banner */}
-        <div className="text-center max-w-2xl mx-auto space-y-4">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#315640]">
-            Handcrafted Reserve Bar
-          </span>
+        <div className="text-center max-w-2xl mx-auto space-y-4 animate-fade-up">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-[#F5F0E7] border border-[#E5DACB] text-[10px] font-semibold uppercase tracking-[0.22em] text-[#315640]">
+            <Sparkles className="w-3 h-3 text-[#C9AE8B]" />
+            <span>Handcrafted Reserve Bar</span>
+          </div>
           <h1 className="font-serif text-4xl sm:text-5xl font-bold text-[#173D2B] tracking-tight">
             Our Coffee &amp; Bakery Menu
           </h1>
@@ -86,105 +93,183 @@ export default function MenuPage() {
           </p>
         </div>
 
-        {/* Category Pills Filter */}
-        <div className="flex items-center justify-center gap-2 flex-wrap">
-          {CATEGORIES.map((category) => {
-            const isActive = activeCategory === category;
-            return (
+        {/* Search & Category Filter Controls */}
+        <div className="space-y-5 animate-fade-up animation-delay-100">
+          {/* Search Input */}
+          <div className="max-w-md mx-auto relative">
+            <Search className="w-4 h-4 text-[#573B2C]/60 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search espresso, cold brew, matcha, croissant..."
+              aria-label="Search menu items"
+              className="w-full pl-11 pr-10 py-3 rounded-full border border-[#E5DACB] bg-white text-xs sm:text-sm text-[#173D2B] placeholder:text-[#573B2C]/50 shadow-2xs focus:outline-hidden focus:border-[#173D2B] focus:ring-2 focus:ring-[#173D2B]/15 transition-all duration-300"
+            />
+            {searchQuery && (
               <button
-                key={category}
                 type="button"
-                onClick={() => setActiveCategory(category)}
-                className={`px-5 py-2.5 rounded-full text-xs font-semibold tracking-wider transition-all cursor-pointer ${
-                  isActive
-                    ? "bg-[#173D2B] text-white shadow-sm ring-1 ring-[#173D2B]"
-                    : "bg-[#F5F0E7] text-[#573B2C] hover:bg-[#E5DACB] hover:text-[#173D2B]"
-                }`}
+                onClick={() => setSearchQuery("")}
+                aria-label="Clear search"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-[#573B2C]/70 hover:text-[#173D2B] hover:bg-[#F5F0E7] transition-colors cursor-pointer"
               >
-                {category}
+                <X className="w-3.5 h-3.5" />
               </button>
-            );
-          })}
+            )}
+          </div>
+
+          {/* Category Pills Filter with Live Counts */}
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            {CATEGORIES.map((category) => {
+              const isActive = activeCategory === category;
+              const count = categoryCounts[category] ?? 0;
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setActiveCategory(category)}
+                  className={`px-4 sm:px-5 py-2.5 rounded-full text-xs font-semibold tracking-wider transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] cursor-pointer flex items-center gap-2 active:scale-95 ${
+                    isActive
+                      ? "bg-[#173D2B] text-white shadow-md ring-2 ring-[#C9AE8B]/70 scale-[1.02]"
+                      : "bg-[#F5F0E7] text-[#573B2C] hover:bg-[#E5DACB] hover:text-[#173D2B] hover:-translate-y-0.5"
+                  }`}
+                >
+                  <span>{category}</span>
+                  <span
+                    className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono transition-colors duration-300 ${
+                      isActive
+                        ? "bg-white/20 text-[#DECDB8]"
+                        : "bg-white/80 text-[#573B2C]"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Menu Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredItems.map((item) => {
-            const imageUrl = getProductImage(item);
-            return (
-              <div
-                key={item.id || item.slug}
-                className="group rounded-3xl border border-[#E5DACB] bg-white overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
-              >
-                {/* Photo & Tag Header */}
-                <div className="relative h-60 w-full overflow-hidden bg-[#173D2B]">
-                  <img
-                    src={imageUrl}
-                    alt={item.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent pointer-events-none" />
+        {/* Menu Grid or Empty Search State */}
+        {filteredItems.length === 0 ? (
+          <div className="max-w-md mx-auto rounded-3xl border border-[#E5DACB] bg-white p-10 text-center space-y-4 animate-scale-in">
+            <div className="w-14 h-14 rounded-full bg-[#F5F0E7] mx-auto flex items-center justify-center text-[#173D2B]">
+              <Coffee className="w-7 h-7 text-[#C9AE8B]" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="font-serif text-xl font-bold text-[#173D2B]">
+                No menu items found
+              </h2>
+              <p className="text-xs text-[#573B2C]">
+                We couldn&apos;t find any drinks or pastries matching &ldquo;{searchQuery}&rdquo; in {activeCategory}.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveCategory("All");
+                setSearchQuery("");
+              }}
+              className="px-5 py-2.5 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer active:scale-95"
+            >
+              Show Full Menu
+            </button>
+          </div>
+        ) : (
+          <div
+            key={`${activeCategory}-${searchQuery.trim().toLowerCase()}`}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7 sm:gap-8"
+          >
+            {filteredItems.map((item, idx) => {
+              const imageUrl = getProductImage(item);
+              const staggerDelay = Math.min(idx * 45, 320);
 
-                  <div className="absolute top-4 left-4 flex gap-2">
-                    <span className="px-3 py-1 rounded-full bg-[#173D2B]/90 backdrop-blur-md text-[#C9AE8B] text-[10px] font-mono font-bold uppercase tracking-widest">
-                      {item.category_name}
-                    </span>
-                    {item.tag && (
-                      <span className="px-3 py-1 rounded-full bg-[#E5DACB]/90 backdrop-blur-md text-[#573B2C] text-[10px] font-mono font-bold uppercase tracking-wider">
-                        {item.tag}
-                      </span>
-                    )}
-                  </div>
+              return (
+                <article
+                  key={item.slug}
+                  style={{ animationDelay: `${staggerDelay}ms` }}
+                  className="group rounded-3xl border border-[#E5DACB] bg-white overflow-hidden shadow-xs hover-card-elevate hover:border-[#C9AE8B] flex flex-col justify-between animate-card-enter"
+                >
+                  {/* Clickable Photo & Tag Header */}
+                  <Link
+                    href={`/menu/${item.slug}`}
+                    className="relative h-60 w-full overflow-hidden bg-[#173D2B] block"
+                  >
+                    <img
+                      src={imageUrl}
+                      alt={item.name}
+                      loading={idx < 6 ? "eager" : "lazy"}
+                      className="w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-108"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent transition-opacity duration-500 group-hover:from-black/75 pointer-events-none" />
 
-                  <div className="absolute bottom-3 left-4 right-4 text-white">
-                    <p className="text-xs text-white/80 font-mono">
-                      {item.origin}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Details Body */}
-                <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-serif text-xl font-bold text-[#173D2B] leading-tight group-hover:text-[#315640] transition-colors">
-                        <Link href={`/menu/${item.slug}`}>
-                          {item.name}
-                        </Link>
-                      </h3>
-                      <span className="font-mono text-lg font-bold text-[#173D2B] shrink-0">
-                        ₱{item.price}
-                      </span>
+                    <div className="absolute top-4 left-4 right-4 flex items-center justify-between gap-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        <span className="px-3 py-1 rounded-full bg-[#173D2B]/90 backdrop-blur-md text-[#C9AE8B] text-[10px] font-mono font-bold uppercase tracking-widest shadow-xs">
+                          {item.category_name}
+                        </span>
+                        {item.tag && (
+                          <span className="px-2.5 py-1 rounded-full bg-[#FFFCF7]/92 backdrop-blur-md text-[#573B2C] text-[10px] font-mono font-bold uppercase tracking-wider shadow-xs">
+                            {item.tag}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    <p className="text-xs text-[#573B2C] leading-relaxed line-clamp-2">
-                      {item.tasting_notes}
-                    </p>
-                  </div>
+                    <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between text-white">
+                      <p className="text-[11px] text-white/90 font-mono truncate pr-2">
+                        {item.origin}
+                      </p>
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-[#DECDB8] opacity-0 translate-y-1 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shrink-0">
+                        <span>Details</span>
+                        <ArrowUpRight className="w-3 h-3" />
+                      </span>
+                    </div>
+                  </Link>
 
-                  {/* Action Buttons */}
-                  <div className="pt-3 border-t border-[#F5F0E7] flex items-center justify-between gap-3">
-                    <Link
-                      href={`/menu/${item.slug}`}
-                      className="text-xs font-semibold text-[#173D2B] hover:text-[#315640] transition-colors underline underline-offset-4"
-                    >
-                      View Recipe Details
-                    </Link>
+                  {/* Details Body */}
+                  <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="font-serif text-xl font-bold text-[#173D2B] leading-tight group-hover:text-[#315640] transition-colors duration-300">
+                          <Link href={`/menu/${item.slug}`}>
+                            {item.name}
+                          </Link>
+                        </h3>
+                        <span className="font-mono text-lg font-bold text-[#173D2B] shrink-0">
+                          ₱{item.price}
+                        </span>
+                      </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleCustomize(item)}
-                      className="px-4 py-2.5 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white text-xs font-semibold uppercase tracking-wider transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
-                    >
-                      <Sliders className="w-3.5 h-3.5 text-[#C9AE8B]" />
-                      <span>Customize</span>
-                    </button>
+                      <p className="text-xs text-[#573B2C] leading-relaxed line-clamp-2">
+                        {item.tasting_notes}
+                      </p>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="pt-3.5 border-t border-[#F5F0E7] flex items-center justify-between gap-3">
+                      <Link
+                        href={`/menu/${item.slug}`}
+                        className="text-xs font-semibold text-[#173D2B] hover:text-[#315640] transition-colors nav-link-underline"
+                      >
+                        View Recipe Details
+                      </Link>
+
+                      <button
+                        type="button"
+                        onClick={() => handleCustomize(item)}
+                        className="px-4 py-2.5 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white text-xs font-semibold uppercase tracking-wider transition-all duration-300 shadow-xs hover:shadow-md flex items-center gap-1.5 cursor-pointer hover:scale-[1.03] active:scale-95"
+                      >
+                        <Sliders className="w-3.5 h-3.5 text-[#C9AE8B]" />
+                        <span>Customize</span>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
 
       </div>
     </div>

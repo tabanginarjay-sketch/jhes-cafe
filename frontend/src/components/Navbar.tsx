@@ -50,7 +50,8 @@ export function Navbar() {
           {/* Desktop Navigation Links */}
           <nav className="hidden md:flex items-center gap-8">
             {navLinks.map((link) => {
-              const isActive = pathname === link.href;
+              const isActive =
+                link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
               return (
                 <Link
                   key={link.href}
@@ -132,21 +133,25 @@ export function Navbar() {
 
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-[#E5DACB] bg-[#FFFCF7] px-4 pt-4 pb-6 space-y-3 animate-fadeIn">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setMobileMenuOpen(false)}
-              className={`block px-3 py-2.5 rounded-lg text-sm font-medium ${
-                pathname === link.href
-                  ? "bg-[#F5F0E7] text-[#173D2B] font-semibold"
-                  : "text-[#573B2C] hover:bg-[#F5F0E7]/60"
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
+        <div className="md:hidden border-t border-[#E5DACB] bg-[#FFFCF7] px-4 pt-4 pb-6 space-y-3 animate-slide-down">
+          {navLinks.map((link) => {
+            const isActive =
+              link.href === "/" ? pathname === "/" : pathname.startsWith(link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className={`block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-[#F5F0E7] text-[#173D2B] font-semibold"
+                    : "text-[#573B2C] hover:bg-[#F5F0E7]/60"
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
           <div className="pt-2 border-t border-[#E5DACB] flex items-center justify-between px-3">
             <Link
               href="/account"

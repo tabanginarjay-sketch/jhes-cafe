@@ -20,23 +20,17 @@ import {
 } from "lucide-react";
 import { useCart, CartItem } from "@/context/CartContext";
 import {
-  getProductType,
   getProductCustomizationRules,
-  ProductType,
-  DRINK_SIZES,
-  COLD_BREW_SIZES,
-  DRINK_TEMPERATURES,
-  DRINK_MILKS,
+  getDefaultSize,
   SWEETNESS_PRESETS,
   EXTRA_SHOTS,
-  DRINK_TOPPINGS,
   CAKE_SERVING_OPTIONS,
   CAKE_FINISHES,
   DOUGHNUT_GLAZES,
   PASTRY_WARMING_OPTIONS,
   PASTRY_ADDONS,
 } from "@/lib/productCustomization";
-import { getProductImage } from "@/lib/productRegistry";
+import { getProductImage, getCanonicalProduct } from "@/lib/productRegistry";
 
 export function ProductCustomizerModal() {
   const {
@@ -80,12 +74,32 @@ export function ProductCustomizerModal() {
 
   const submitButtonRef = useRef<HTMLButtonElement | null>(null);
 
+  // Escape key close & scroll lock when modal is open
+  useEffect(() => {
+    if (!activeProduct) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setQuickCustomizeProduct(null);
+        setActiveEditItem(null);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [activeProduct, setQuickCustomizeProduct, setActiveEditItem]);
+
   // Initialize form whenever product or edit item changes
   useEffect(() => {
     if (!activeProduct) return;
 
+    const standardSize = getDefaultSize(rules);
+
     if (isEditMode && activeEditItem) {
-      setSize(activeEditItem.size || "Grande 16oz");
+      setSize(activeEditItem.size || standardSize);
       setTemperature(activeEditItem.temperature || (rules.defaultTemperature || "Hot"));
       setMilk(activeEditItem.milk || "Whole Milk");
       setSweetness(activeEditItem.sweetness !== undefined ? activeEditItem.sweetness : 50);
@@ -98,8 +112,8 @@ export function ProductCustomizerModal() {
       setPastryAddOns(activeEditItem.addOns || []);
       setQuantity(activeEditItem.quantity || 1);
     } else {
-      // Default initialization according to product rules
-      setSize(rules.supportedSizes[0]?.name || "Grande 16oz");
+      // Default initialization according to product rules (Standard Grande size = delta 0)
+      setSize(standardSize);
       setTemperature(rules.defaultTemperature || "Hot");
       setMilk("Whole Milk");
       setSweetness(50);
@@ -117,7 +131,13 @@ export function ProductCustomizerModal() {
 
   if (!activeProduct) return null;
 
-  const basePrice = Number(activeProduct.basePrice || activeProduct.price) || 200;
+  // Always resolve true base price so editing a customized cart item never double-counts add-on fees
+  const canonicalMatch = getCanonicalProduct(activeProduct.slug || activeProduct.name || activeProduct.id);
+  const basePrice = Number(
+    isEditMode
+      ? activeProduct.basePrice ?? canonicalMatch?.price ?? activeProduct.price
+      : activeProduct.basePrice ?? activeProduct.price ?? canonicalMatch?.price
+  ) || 200;
   const resolvedImage = getProductImage(activeProduct);
 
   // Accurate dynamic price calculations
@@ -137,7 +157,7 @@ export function ProductCustomizerModal() {
 
   // 3. Shots fee
   if (rules.allowsExtraShots) {
-    const shotObj = EXTRA_SHOTS.find((s) => (s as any).count === extraShots);
+    const shotObj = EXTRA_SHOTS.find((s) => s.count === extraShots);
     if (shotObj) calculatedUnitPrice += shotObj.delta;
   }
 
@@ -254,6 +274,7 @@ export function ProductCustomizerModal() {
 
     if (isEditMode && activeEditItem) {
       updateItem(activeEditItem.id, {
+        basePrice,
         price: calculatedUnitPrice,
         quantity,
         size: rules.allowsSize ? size : undefined,
@@ -280,6 +301,7 @@ export function ProductCustomizerModal() {
           slug: activeProduct.slug || activeProduct.id,
           name: activeProduct.name,
           category: activeProduct.category_name || activeProduct.category || rules.categoryLabel,
+          basePrice,
           price: calculatedUnitPrice,
           quantity,
           imageUrl: resolvedImage,
@@ -560,15 +582,15 @@ export function ProductCustomizerModal() {
                     </label>
                     <div className="grid grid-cols-3 gap-2.5">
                       {EXTRA_SHOTS.map((s) => {
-                        const isSelected = extraShots === (s as any).count;
+                        const isSelected = extraShots === s.count;
                         return (
                           <button
-                            key={(s as any).count}
+                            key={s.id}
                             type="button"
-                            onClick={() => setExtraShots((s as any).count)}
-                            className={`p-2.5 rounded-2xl border text-center transition-all cursor-pointer ${
+                            onClick={() => setExtraShots(s.count)}
+                            className={`p-2.5 rounded-2xl border text-center transition-all duration-200 cursor-pointer active:scale-95 ${
                               isSelected
-                                ? "bg-[#173D2B] text-white border-[#173D2B] shadow-sm ring-1 ring-[#C9AE8B]"
+                                ? "bg-[#173D2B] text-white border-[#173D2B] shadow-sm ring-2 ring-[#C9AE8B]"
                                 : "border-[#E5DACB] bg-white text-[#573B2C] hover:border-[#315640]"
                             }`}
                           >
@@ -954,7 +976,7 @@ export function ProductCustomizerModal() {
                     <p className="text-[10px] uppercase font-mono tracking-wider text-[#573B2C]">
                       Total Price
                     </p>
-                    <p className="font-serif text-2xl font-bold text-[#173D2B]">
+                    <p key={totalPrice} className="font-serif text-2xl font-bold text-[#173D2B] animate-price-bump">
                       ₱{totalPrice}
                     </p>
                   </div>
