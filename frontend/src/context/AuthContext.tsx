@@ -45,19 +45,26 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const STORAGE_KEY = "brew_and_co_user";
-const TOKEN_KEY = "brew_and_co_token";
+const STORAGE_KEY = "jhes_cafe_user";
+const TOKEN_KEY = "jhes_cafe_token";
+const LEGACY_KEYS = ["brew_and_co_user", "brew_and_co_token", "brew_and_co_last_device_email"];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Re-hydrate session from server HttpOnly cookie or localStorage
+  // Re-hydrate session strictly from server-verified HttpOnly cookie via /api/v1/auth/me
   useEffect(() => {
     async function initSession() {
       try {
-        // 1. First check server-side verified session via /api/v1/auth/me
+        // Clean legacy brew_and_co keys
+        LEGACY_KEYS.forEach((k) => {
+          try {
+            localStorage.removeItem(k);
+          } catch {}
+        });
+
         const serverUser = await authGetMe();
         if (serverUser) {
           setUser(serverUser);
@@ -65,15 +72,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // 2. Fallback to persisted local session
-        const stored = localStorage.getItem(STORAGE_KEY);
-        const storedToken = localStorage.getItem(TOKEN_KEY);
-        if (stored) {
-          setUser(JSON.parse(stored));
-          if (storedToken) setSessionToken(storedToken);
-        } else {
-          setUser(null);
-        }
+        // If server reports unauthenticated (401), clear stale local cache
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(TOKEN_KEY);
+        setUser(null);
+        setSessionToken(null);
       } catch (e) {
         console.warn("Session initialization notice:", e);
         setUser(null);
@@ -92,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSessionToken(resp.access_token);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
       localStorage.setItem(TOKEN_KEY, resp.access_token);
-      localStorage.setItem("brew_and_co_last_device_email", resp.user.email);
+      localStorage.setItem("jhes_cafe_last_device_email", resp.user.email);
       return resp.user;
     } finally {
       setIsLoading(false);
@@ -108,7 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setSessionToken(resp.access_token);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
         localStorage.setItem(TOKEN_KEY, resp.access_token);
-        localStorage.setItem("brew_and_co_last_device_email", resp.user.email);
+        localStorage.setItem("jhes_cafe_last_device_email", resp.user.email);
         return resp.user;
       } finally {
         setIsLoading(false);
@@ -125,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSessionToken(resp.access_token);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
       localStorage.setItem(TOKEN_KEY, resp.access_token);
-      localStorage.setItem("brew_and_co_last_device_email", resp.user.email);
+      localStorage.setItem("jhes_cafe_last_device_email", resp.user.email);
       return resp.user;
     } finally {
       setIsLoading(false);
@@ -145,7 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSessionToken(resp.access_token);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
       localStorage.setItem(TOKEN_KEY, resp.access_token);
-      localStorage.setItem("brew_and_co_last_device_email", resp.user.email);
+      localStorage.setItem("jhes_cafe_last_device_email", resp.user.email);
       return resp.user;
     } finally {
       setIsLoading(false);
@@ -163,7 +166,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSessionToken(resp.access_token);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
       localStorage.setItem(TOKEN_KEY, resp.access_token);
-      localStorage.setItem("brew_and_co_last_device_email", resp.user.email);
+      localStorage.setItem("jhes_cafe_last_device_email", resp.user.email);
       return resp.user;
     } finally {
       setIsLoading(false);
@@ -196,7 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setUser(created);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(created));
-      localStorage.setItem("brew_and_co_last_device_email", cleanEmail);
+      localStorage.setItem("jhes_cafe_last_device_email", cleanEmail);
       return created;
     } finally {
       setIsLoading(false);
@@ -211,7 +214,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (found) {
         setUser(found);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(found));
-        localStorage.setItem("brew_and_co_last_device_email", cleanEmail);
+        localStorage.setItem("jhes_cafe_last_device_email", cleanEmail);
         return found;
       }
 
@@ -242,7 +245,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(created);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(created));
-      localStorage.setItem("brew_and_co_last_device_email", cleanEmail);
+      localStorage.setItem("jhes_cafe_last_device_email", cleanEmail);
       return created;
     } finally {
       setIsLoading(false);
@@ -278,7 +281,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setUser(bound);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(bound));
-      localStorage.setItem("brew_and_co_last_device_email", cleanEmail);
+      localStorage.setItem("jhes_cafe_last_device_email", cleanEmail);
       return bound;
     } finally {
       setIsLoading(false);

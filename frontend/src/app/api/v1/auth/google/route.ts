@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { airtableList, airtableCreate } from "@/lib/airtable";
+import {
+  SESSION_COOKIE_NAME,
+  escapeFormulaString,
+  signSessionToken,
+} from "@/lib/serverAuth";
 
 export async function POST(req: NextRequest) {
   try {
@@ -148,28 +153,22 @@ export async function POST(req: NextRequest) {
         }
       }
     } else if (idToken) {
-      // Direct JWT decode first
-      try {
-        const parts = idToken.split(".");
-        if (parts.length === 3) {
-          const payloadJson = Buffer.from(parts[1], "base64url").toString("utf-8");
-          claims = JSON.parse(payloadJson);
-        }
-      } catch {
-        // Fallback
-      }
-
-      if (!claims) {
-        const googleRes = await fetch(
-          `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`
+      // Strictly verify client-supplied ID token with Google's tokeninfo endpoint (never trust unverified JWT)
+      const googleRes = await fetch(
+        `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`
+      );
+      if (!googleRes.ok) {
+        return NextResponse.json(
+          { detail: "Invalid or expired Google identity token." },
+          { status: 401 }
         );
-        if (!googleRes.ok) {
-          return NextResponse.json(
-            { detail: "Invalid or expired Google identity token." },
-            { status: 401 }
-          );
-        }
-        claims = await googleRes.json();
+      }
+      claims = await googleRes.json();
+      if (clientId && claims.aud && claims.aud !== clientId) {
+        return NextResponse.json(
+          { detail: "Google token audience mismatch." },
+          { status: 401 }
+        );
       }
     }
 
@@ -192,10 +191,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Lookup or register in Airtable
+    // Lookup or register in Airtable (strictly customer role on public registration)
     let user: any = null;
     try {
-      const existing = await airtableList("Users", `LOWER({email}) = '${verifiedEmail}'`, true);
+      const safeEmail = escapeFormulaString(verifiedEmail);
+      const existing = await airtableList("Users", `LOWER({email}) = '${safeEmail}'`, true);
       if (existing.length > 0) {
         user = existing[0];
       } else {
@@ -203,6 +203,8 @@ export async function POST(req: NextRequest) {
           user = await airtableCreate("Users", {
             full_name: verifiedName,
             email: verifiedEmail,
+            role: "customer",
+            loyalty_points: 25,
           });
         } catch {
           user = {
@@ -232,16 +234,15 @@ export async function POST(req: NextRequest) {
     const fullName = user.full_name || verifiedName;
     const userRole = user.role || "customer";
 
-    // Issue JWT / Session token
-    const token = `jhes_jwt_${Buffer.from(
-      JSON.stringify({
-        sub: userId,
-        email: verifiedEmail,
-        role: userRole,
-        name: fullName,
-        avatar_url: picture,
-      })
-    ).toString("base64url")}`;
+    // Issue HMAC-signed session token
+    const token = signSessionToken({
+      sub: userId,
+      email: verifiedEmail,
+      role: userRole,
+      name: fullName,
+      auth_provider: "google",
+      avatar_url: picture,
+    });
 
     const res = NextResponse.json({
       access_token: token,
@@ -251,14 +252,14 @@ export async function POST(req: NextRequest) {
         full_name: fullName,
         email: verifiedEmail,
         role: userRole,
-        loyalty_points: user.loyalty_points || 25,
+        loyalty_points: Number(user.loyalty_points) || 25,
         auth_provider: "google",
         avatar_url: picture,
       },
       message: `Welcome, ${fullName}!`,
     });
 
-    res.cookies.set("jhes_session", token, {
+    res.cookies.set(SESSION_COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

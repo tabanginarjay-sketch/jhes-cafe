@@ -2,16 +2,29 @@
 
 import { useState } from "react";
 import { FindUsSection } from "@/components/home/FindUsSection";
-import { Mail, Phone, MapPin, Send, Check } from "lucide-react";
+import { BRAND_CONFIG } from "@/lib/brandConfig";
+import { Mail, Phone, MapPin, Send, Check, Clock, Info } from "lucide-react";
 
 export default function ContactPage() {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !email.trim() || !message.trim()) return;
+    setSubmitted(true);
+    setName("");
+    setEmail("");
+    setMessage("");
+  };
 
   return (
     <div className="bg-[#FFFCF7]">
-      <section className="py-20 bg-[#F5F0E7] border-b border-[#E5DACB] text-center space-y-4">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#315640]">
-          Connect With Us
+      <section className="py-20 bg-[#F5F0E7] border-b border-[#E5DACB] text-center space-y-4 px-4">
+        <span className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#315640]">
+          Connect With {BRAND_CONFIG.name} · {BRAND_CONFIG.demoBadge}
         </span>
         <h1 className="font-serif text-4xl sm:text-5xl font-bold text-[#173D2B]">
           Find Us &amp; Say Hello
@@ -36,50 +49,95 @@ export default function ContactPage() {
               <div className="flex items-start gap-3 p-4 rounded-2xl bg-[#F5F0E7]">
                 <MapPin className="w-5 h-5 text-[#173D2B] shrink-0" />
                 <div>
-                  <p className="font-bold text-[#173D2B]">Flagship Roastery</p>
-                  <p>Km 58 Tagaytay-Nasugbu Highway, Cavite</p>
+                  <p className="font-bold text-[#173D2B]">Flagship Lounge (Demo Location)</p>
+                  <p>{BRAND_CONFIG.location.fullAddress}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-4 rounded-2xl bg-[#F5F0E7]">
+                <Clock className="w-5 h-5 text-[#173D2B] shrink-0" />
+                <div>
+                  <p className="font-bold text-[#173D2B]">Operating Hours</p>
+                  <p>{BRAND_CONFIG.hours.weekdaysLabel} · {BRAND_CONFIG.hours.weekendsLabel}</p>
                 </div>
               </div>
 
               <div className="flex items-start gap-3 p-4 rounded-2xl bg-[#F5F0E7]">
                 <Phone className="w-5 h-5 text-[#173D2B] shrink-0" />
                 <div>
-                  <p className="font-bold text-[#173D2B]">Concierge Phone</p>
-                  <p>+63 917 892 4110 / (046) 413 8820</p>
+                  <p className="font-bold text-[#173D2B]">Concierge Phone (Demo)</p>
+                  <p>{BRAND_CONFIG.contact.phoneDisplay}</p>
                 </div>
               </div>
 
               <div className="flex items-start gap-3 p-4 rounded-2xl bg-[#F5F0E7]">
                 <Mail className="w-5 h-5 text-[#173D2B] shrink-0" />
                 <div>
-                  <p className="font-bold text-[#173D2B]">Email Inquiries</p>
-                  <p>hello@brewandco.ph / concierge@brewandco.ph</p>
+                  <p className="font-bold text-[#173D2B]">Email Inquiries (Demo)</p>
+                  <p>{BRAND_CONFIG.contact.email} / {BRAND_CONFIG.contact.conciergeEmail}</p>
                 </div>
               </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl border border-[#E5DACB] bg-amber-50/50 text-[11px] text-[#573B2C] flex items-start gap-2.5">
+              <Info className="w-4 h-4 text-[#315640] shrink-0 mt-0.5" />
+              <span>{BRAND_CONFIG.demoDisclaimer}</span>
             </div>
           </div>
 
           <div className="lg:col-span-6">
             <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                setSubmitted(true);
-              }}
+              onSubmit={handleSubmit}
               className="rounded-3xl border border-[#E5DACB] bg-white p-8 space-y-4 shadow-sm"
             >
-              <h3 className="font-serif text-xl font-bold text-[#173D2B]">Send a Message</h3>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="font-serif text-xl font-bold text-[#173D2B]">Send a Message</h3>
+                <span className="text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded-full bg-[#F5F0E7] text-[#315640]">
+                  Demo Inquiry Form
+                </span>
+              </div>
               <div className="space-y-3 text-xs">
                 <div>
                   <label className="font-semibold text-[#173D2B] block mb-1">Your Full Name</label>
-                  <input required type="text" placeholder="Juan Ramos" className="w-full rounded-xl border border-[#E5DACB] p-3 text-xs text-[#173D2B]" />
+                  <input
+                    required
+                    type="text"
+                    value={name}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      if (submitted) setSubmitted(false);
+                    }}
+                    placeholder="Your Name"
+                    className="w-full rounded-xl border border-[#E5DACB] p-3 text-xs text-[#173D2B]"
+                  />
                 </div>
                 <div>
                   <label className="font-semibold text-[#173D2B] block mb-1">Email Address</label>
-                  <input required type="email" placeholder="juan@example.com" className="w-full rounded-xl border border-[#E5DACB] p-3 text-xs text-[#173D2B]" />
+                  <input
+                    required
+                    type="email"
+                    value={email}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (submitted) setSubmitted(false);
+                    }}
+                    placeholder="you@example.com"
+                    className="w-full rounded-xl border border-[#E5DACB] p-3 text-xs text-[#173D2B]"
+                  />
                 </div>
                 <div>
                   <label className="font-semibold text-[#173D2B] block mb-1">Message</label>
-                  <textarea required rows={4} placeholder="How can we help?" className="w-full rounded-xl border border-[#E5DACB] p-3 text-xs text-[#173D2B]" />
+                  <textarea
+                    required
+                    rows={4}
+                    value={message}
+                    onChange={(e) => {
+                      setMessage(e.target.value);
+                      if (submitted) setSubmitted(false);
+                    }}
+                    placeholder="How can we help?"
+                    className="w-full rounded-xl border border-[#E5DACB] p-3 text-xs text-[#173D2B]"
+                  />
                 </div>
               </div>
 
@@ -90,7 +148,7 @@ export default function ContactPage() {
                 {submitted ? (
                   <>
                     <Check className="w-4 h-4 text-[#C9AE8B]" />
-                    <span>Message Sent! We will reply shortly.</span>
+                    <span>Demo Inquiry Recorded — Send Another</span>
                   </>
                 ) : (
                   <>
@@ -99,6 +157,12 @@ export default function ContactPage() {
                   </>
                 )}
               </button>
+
+              {submitted && (
+                <p className="text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-center">
+                  Thank you for testing the Jhe&apos;s Cafe&apos; contact form. Because this is a portfolio demonstration, no external email was dispatched.
+                </p>
+              )}
             </form>
           </div>
 

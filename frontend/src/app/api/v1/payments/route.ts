@@ -1,33 +1,59 @@
 import { NextRequest, NextResponse } from "next/server";
 import { airtableList, airtableCreate } from "@/lib/airtable";
+import { getAuthenticatedAdmin } from "@/lib/serverAuth";
 
-const DEFAULT_PAYMENTS = [
-  { ref: "PAY-2026-0001", order: "BNC-001024", amount: 440, provider: "GCash", status: "Completed", date: "Nov 23, 2026, 8:43 AM" },
-  { ref: "PAY-2026-0002", order: "BNC-001001", amount: 350, provider: "Maya", status: "Completed", date: "Nov 23, 2026, 9:12 AM" },
-  { ref: "PAY-2026-0003", order: "BNC-000982", amount: 280, provider: "Credit Card (Visa)", status: "Completed", date: "Nov 22, 2026, 4:15 PM" },
-  { ref: "PAY-2026-0004", order: "BNC-000975", amount: 190, provider: "Cash at Counter", status: "Completed", date: "Nov 22, 2026, 2:30 PM" },
-];
+export async function GET(req: NextRequest) {
+  const admin = getAuthenticatedAdmin(req);
+  if (!admin) {
+    return NextResponse.json(
+      { detail: "Administrator authentication required." },
+      { status: 401 }
+    );
+  }
 
-export async function GET() {
   try {
     const records = await airtableList("Payments", undefined, true);
-    if (records.length > 0) {
-      return NextResponse.json(records);
-    }
-    return NextResponse.json(DEFAULT_PAYMENTS);
-  } catch {
-    return NextResponse.json(DEFAULT_PAYMENTS);
+    records.sort((a: any, b: any) =>
+      String(b.created_at || "").localeCompare(String(a.created_at || ""))
+    );
+    return NextResponse.json(records, {
+      headers: { "Cache-Control": "no-store" },
+    });
+  } catch (err) {
+    return NextResponse.json(
+      { detail: err instanceof Error ? err.message : "Failed to fetch payments from Airtable" },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(req: NextRequest) {
+  const admin = getAuthenticatedAdmin(req);
+  if (!admin) {
+    return NextResponse.json(
+      { detail: "Administrator authentication required." },
+      { status: 401 }
+    );
+  }
+
   try {
     const body = await req.json();
+    const allowedStatuses = ["pending", "completed", "failed", "refunded"];
+    // Never default to "completed" without explicit confirmation
+    const requestedStatus = String(body.status || "pending").toLowerCase();
+    const safeStatus = allowedStatuses.includes(requestedStatus) ? requestedStatus : "pending";
+
+    const paymentRef =
+      body.payment_ref || `PAY-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+
     const created = await airtableCreate("Payments", {
-      order_id: body.order_id,
+      payment_ref: paymentRef,
+      order_id: body.order_id || "",
+      order_number: body.order_number || "",
       amount: Number(body.amount) || 0,
-      payment_method: body.payment_method || "cash",
-      status: "completed",
+      provider: body.provider || body.payment_method || "cash",
+      status: safeStatus,
+      transaction_id: body.transaction_id || `TXN-${Date.now()}`,
     });
     return NextResponse.json(created, { status: 201 });
   } catch (err) {

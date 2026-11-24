@@ -1,36 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
-import { airtableList, airtableCreate, airtableUpdate } from "@/lib/airtable";
+import { airtableList, airtableCreate, airtableUpdate, airtableGet } from "@/lib/airtable";
+import { getAuthenticatedAdmin } from "@/lib/serverAuth";
 
-const DEFAULT_INVENTORY = [
-  { id: "inv-1", item_name: "Amadeo Cavite Liberica Beans 1kg", sku: "BEAN-LIB-01", stock_quantity: 15, unit: "kg", reorder_threshold: 5 },
-  { id: "inv-2", item_name: "Benguet Typica Whole Beans 1kg", sku: "BEAN-TYP-01", stock_quantity: 12, unit: "kg", reorder_threshold: 4 },
-  { id: "inv-3", item_name: "Barista Oat Milk 1L", sku: "MILK-OAT-01", stock_quantity: 24, unit: "pcs", reorder_threshold: 8 },
-  { id: "inv-4", item_name: "Wild Tagaytay Honey 500ml", sku: "SYR-HNY-01", stock_quantity: 10, unit: "pcs", reorder_threshold: 3 },
-  { id: "inv-5", item_name: "Ceylon Cinnamon Bark Powder 250g", sku: "SPICE-CIN-01", stock_quantity: 18, unit: "pcs", reorder_threshold: 5 },
-  { id: "inv-6", item_name: "Ceramic Coffee Cups 12oz", sku: "CUP-CER-12", stock_quantity: 48, unit: "pcs", reorder_threshold: 12 },
-];
+export async function GET(req: NextRequest) {
+  const admin = getAuthenticatedAdmin(req);
+  if (!admin) {
+    return NextResponse.json(
+      { detail: "Administrator authentication required." },
+      { status: 401 }
+    );
+  }
 
-export async function GET() {
   try {
     const records = await airtableList("Inventory", undefined, true);
-    if (records.length > 0) {
-      return NextResponse.json(records);
-    }
-    return NextResponse.json(DEFAULT_INVENTORY);
-  } catch {
-    return NextResponse.json(DEFAULT_INVENTORY);
+    return NextResponse.json(records, {
+      headers: { "Cache-Control": "no-store" },
+    });
+  } catch (err) {
+    return NextResponse.json(
+      { detail: err instanceof Error ? err.message : "Failed to load inventory from Airtable" },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(req: NextRequest) {
+  const admin = getAuthenticatedAdmin(req);
+  if (!admin) {
+    return NextResponse.json(
+      { detail: "Administrator authentication required." },
+      { status: 401 }
+    );
+  }
+
   try {
     const body = await req.json();
+    const itemName = String(body.item_name || "").trim();
+    if (!itemName) {
+      return NextResponse.json({ detail: "Item name is required." }, { status: 400 });
+    }
+
     const created = await airtableCreate("Inventory", {
-      item_name: body.item_name,
-      sku: body.sku,
-      stock_quantity: Number(body.stock_quantity) || 0,
+      item_name: itemName,
+      sku: String(body.sku || `SKU-${Date.now().toString().slice(-4)}`).trim(),
+      category: body.category || "supplies",
+      stock_quantity: Math.max(0, Number(body.stock_quantity) || 0),
       unit: body.unit || "pcs",
-      reorder_threshold: Number(body.reorder_threshold) || 5,
+      reorder_threshold: Math.max(0, Number(body.reorder_threshold) || 5),
+      supplier: body.supplier || "Local Supplier",
+      last_restocked: new Date().toISOString().split("T")[0],
     });
     return NextResponse.json(created, { status: 201 });
   } catch (err) {
@@ -42,35 +60,46 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const admin = getAuthenticatedAdmin(req);
+  if (!admin) {
+    return NextResponse.json(
+      { detail: "Administrator authentication required." },
+      { status: 401 }
+    );
+  }
+
   try {
     const body = await req.json();
-    const { id, stock_quantity, delta } = body;
+    const { id, stock_quantity, delta, reorder_threshold } = body;
 
-    if (!id) {
-      return NextResponse.json({ detail: "Item id is required" }, { status: 400 });
+    if (!id || !String(id).startsWith("rec")) {
+      return NextResponse.json(
+        { detail: "A valid Airtable Inventory record ID is required." },
+        { status: 400 }
+      );
     }
 
-    // Try Airtable update if id is a real record
-    if (id.startsWith("rec")) {
-      let newQuantity = stock_quantity;
-      if (delta !== undefined) {
-        const currentList = await airtableList("Inventory", undefined, true);
-        const item = currentList.find((i: any) => i.id === id);
-        newQuantity = Math.max(0, (item?.stock_quantity || 0) + delta);
-      }
-      const updated = await airtableUpdate("Inventory", id, {
-        stock_quantity: newQuantity,
-      });
-      return NextResponse.json(updated);
+    const current: any = await airtableGet("Inventory", id);
+    const currentQty = Number(current.stock_quantity) || 0;
+    const nextQty =
+      delta !== undefined
+        ? Math.max(0, currentQty + Number(delta))
+        : stock_quantity !== undefined
+          ? Math.max(0, Number(stock_quantity))
+          : currentQty;
+
+    const updateFields: Record<string, unknown> = {
+      stock_quantity: nextQty,
+    };
+    if (nextQty > currentQty) {
+      updateFields.last_restocked = new Date().toISOString().split("T")[0];
+    }
+    if (reorder_threshold !== undefined) {
+      updateFields.reorder_threshold = Math.max(0, Number(reorder_threshold));
     }
 
-    // If demo item id, return simulated updated item
-    const match = DEFAULT_INVENTORY.find((i) => i.id === id);
-    const newQty = delta !== undefined ? Math.max(0, (match?.stock_quantity || 10) + delta) : stock_quantity;
-    return NextResponse.json({
-      ...(match || { id, item_name: "Inventory Item", sku: "SKU-001", unit: "pcs", reorder_threshold: 5 }),
-      stock_quantity: newQty,
-    });
+    const updated = await airtableUpdate("Inventory", id, updateFields);
+    return NextResponse.json(updated);
   } catch (err) {
     return NextResponse.json(
       { detail: err instanceof Error ? err.message : "Error updating inventory" },

@@ -1,12 +1,15 @@
 /**
- * Base API client configuration for communicating with the FastAPI backend.
+ * Environment-based API client configuration for Jhe's Cafe'.
+ * Never targets localhost:8000 in production builds or deployed browsers.
  */
 
 export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1"
+  (typeof window !== "undefined"
     ? `${window.location.origin}/api/v1`
-    : "http://localhost:8000/api/v1");
+    : process.env.NODE_ENV === "production"
+      ? "/api/v1"
+      : "http://localhost:3002/api/v1");
 
 export interface HealthResponse {
   status: string;
@@ -153,7 +156,7 @@ export async function bindSocialAccountApi(payload: {
     body: JSON.stringify({
       full_name: payload.full_name,
       email: payload.email,
-      phone: payload.phone || "+639178889900",
+      ...(payload.phone ? { phone: payload.phone } : {}),
       social_provider: payload.provider,
     }),
   });

@@ -109,7 +109,7 @@ function RegisterForm() {
                 Welcome, {registeredUser.full_name}!
               </h2>
               <p className="text-sm text-[#573B2C] max-w-md mx-auto leading-relaxed">
-                Your member account has been registered with **Jhe&apos;s Cafe&apos;**. You are now a recognized member of our Highland Reserve coffee club.
+                Your member account has been registered with <strong>Jhe&apos;s Cafe&apos;</strong>. You are now a recognized member of our Highland Reserve coffee club.
               </p>
             </div>
 
@@ -270,7 +270,7 @@ function RegisterForm() {
               <div className="p-4 rounded-2xl bg-[#F5F0E7]/70 border border-[#E5DACB] space-y-2 mt-4">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-[#315640] flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-[#C9AE8B]" />
-                  Your Jhe&apos;s Cafe&apos; Perks:
+                  Your Jhe&apos;s Cafe&apos; Member Perks (Portfolio Demo):
                 </span>
                 <ul className="text-[11px] text-[#573B2C] space-y-1 list-disc list-inside">
                   <li>Earn 1 bean point for every ₱50 spent on drinks and pastries.</li>

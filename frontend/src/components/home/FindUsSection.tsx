@@ -1,11 +1,10 @@
 import { MapPin, Clock, Navigation, ExternalLink, Sparkles, Compass } from "lucide-react";
 import { ScrollReveal } from "@/components/common/ScrollReveal";
+import { BRAND_CONFIG } from "@/lib/brandConfig";
 
 export function FindUsSection() {
-  const googleMapsUrl =
-    "https://www.google.com/maps/search/?api=1&query=Km+58+Tagaytay-Nasugbu+Highway+Cavite+Philippines";
-  const embedMapUrl =
-    "https://maps.google.com/maps?q=Km%2058%20Tagaytay-Nasugbu%20Highway,%20Cavite,%20Philippines&t=&z=15&ie=UTF8&iwloc=&output=embed";
+  const googleMapsUrl = BRAND_CONFIG.location.googleMapsSearchUrl;
+  const embedMapUrl = BRAND_CONFIG.location.googleMapsEmbedUrl;
 
   return (
     <section className="py-20 lg:py-24 bg-[#FFFCF7] border-t border-[#E5DACB]">
@@ -23,7 +22,7 @@ export function FindUsSection() {
               <ScrollReveal direction="up" delay={0} className="space-y-6">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/15 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#C9AE8B]">
                   <Sparkles className="w-3 h-3" />
-                  <span>Visit Our Flagship Lounge</span>
+                  <span>Visit Our Flagship Lounge · Portfolio Demo</span>
                 </div>
 
                 <div className="space-y-3">
@@ -50,8 +49,10 @@ export function FindUsSection() {
                     <Clock className="w-5 h-5 text-[#C9AE8B] shrink-0 mt-0.5" />
                     <div className="space-y-1">
                       <p className="font-semibold text-[#FFFCF7]">Operating Hours</p>
-                      <p className="text-[#F5F0E7]/70">
-                        Daily: 6:30 AM – 10:30 PM
+                      <p className="text-[#F5F0E7]/70 leading-relaxed">
+                        {BRAND_CONFIG.hours.weekdaysLabel}
+                        <br />
+                        {BRAND_CONFIG.hours.weekendsLabel}
                       </p>
                     </div>
                   </div>

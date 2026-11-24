@@ -1,48 +1,74 @@
 import { NextRequest, NextResponse } from "next/server";
 import { airtableList, airtableCreate } from "@/lib/airtable";
-
-const BACKEND_URL = process.env.FASTAPI_URL || "http://127.0.0.1:8000/api/v1";
+import {
+  SESSION_COOKIE_NAME,
+  escapeFormulaString,
+  hashPassword,
+  sanitizeNumericPhone,
+  signSessionToken,
+} from "@/lib/serverAuth";
+import { serverPasswordStore } from "@/lib/passwordStore";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // 1. Try forwarding to FastAPI backend if available
-    try {
-      const backendRes = await fetch(`${BACKEND_URL}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(3000),
-      });
+    // 1. Forward to FastAPI only if explicitly configured with non-local URL in production
+    const isProduction = process.env.NODE_ENV === "production";
+    const explicitBackendUrl = process.env.FASTAPI_URL;
+    const shouldForward = Boolean(
+      explicitBackendUrl &&
+        (!isProduction || (!explicitBackendUrl.includes("127.0.0.1") && !explicitBackendUrl.includes("localhost")))
+    );
 
-      if (backendRes.ok) {
-        const data = await backendRes.json();
-        const response = NextResponse.json(data, { status: 201 });
-        const setCookieHeader = backendRes.headers.get("set-cookie");
-        if (setCookieHeader) {
-          response.headers.set("set-cookie", setCookieHeader);
+    if (shouldForward) {
+      try {
+        const backendRes = await fetch(`${explicitBackendUrl}/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(3000),
+        });
+
+        if (backendRes.ok) {
+          const data = await backendRes.json();
+          const response = NextResponse.json(data, { status: 201 });
+          const setCookieHeader = backendRes.headers.get("set-cookie");
+          if (setCookieHeader) {
+            response.headers.set("set-cookie", setCookieHeader);
+          }
+          return response;
+        } else if (backendRes.status === 409 || backendRes.status === 400) {
+          const errorData = await backendRes.json().catch(() => ({}));
+          return NextResponse.json(errorData, { status: backendRes.status });
         }
-        return response;
-      } else if (backendRes.status === 409) {
-        const errorData = await backendRes.json().catch(() => ({}));
-        return NextResponse.json(errorData, { status: 409 });
+      } catch {
+        // Fall through to Next.js serverless handler
       }
-    } catch {
-      // Fall through to Next.js serverless handler
     }
 
-    // 2. Next.js Serverless fallback
-    const { full_name, email, password, phone } = body;
-    if (!email || !full_name || !password) {
+    // 2. Next.js Serverless registration
+    const fullName = String(body.full_name || "").trim();
+    const cleanEmail = String(body.email || "").toLowerCase().trim();
+    const password = String(body.password || "");
+    const numericPhone = sanitizeNumericPhone(body.phone);
+
+    if (!cleanEmail || !cleanEmail.includes("@") || !fullName || !password) {
       return NextResponse.json(
-        { detail: "Full name, email, and password are required." },
+        { detail: "Valid full name, email address, and password are required." },
         { status: 400 }
       );
     }
 
-    const cleanEmail = String(email).toLowerCase().trim();
-    const existing = await airtableList("Users", `LOWER({email}) = '${cleanEmail}'`, true).catch(() => []);
+    if (password.length < 6) {
+      return NextResponse.json(
+        { detail: "Password must be at least 6 characters long." },
+        { status: 400 }
+      );
+    }
+
+    const safeEmail = escapeFormulaString(cleanEmail);
+    const existing = await airtableList("Users", `LOWER({email}) = '${safeEmail}'`, true).catch(() => []);
     if (existing.length > 0) {
       return NextResponse.json(
         { detail: "An account with this email address already exists. Please log in." },
@@ -50,29 +76,47 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Never grant admin privileges through public registration
+    const hashed = hashPassword(password);
+    serverPasswordStore.set(cleanEmail, hashed);
+
+    // Strictly enforce role = "customer" — NEVER allow admin creation via public registration
+    const coreFields: Record<string, unknown> = {
+      full_name: fullName,
+      email: cleanEmail,
+      role: "customer",
+      loyalty_points: 25,
+      ...(numericPhone !== undefined ? { phone: numericPhone } : {}),
+    };
+
     let airtableUser: any = null;
     try {
+      // Try storing password_hash if Airtable base owner has added the column
       airtableUser = await airtableCreate("Users", {
-        full_name: full_name.trim(),
-        email: cleanEmail,
-        ...(phone ? { phone: String(phone).trim() } : {}),
+        ...coreFields,
+        password_hash: hashed,
       });
-    } catch (airtableErr) {
-      console.warn("Airtable create note:", airtableErr);
+    } catch {
+      // Fallback cleanly to the verified 5 Airtable Users columns
+      airtableUser = await airtableCreate("Users", coreFields);
     }
 
     const user = {
-      id: airtableUser?.id || `cust-${Date.now()}`,
-      full_name: full_name.trim(),
+      id: airtableUser.id,
+      full_name: fullName,
       email: cleanEmail,
-      phone: phone || null,
+      phone: airtableUser.phone ?? numericPhone ?? null,
       role: "customer",
-      loyalty_points: 25,
+      loyalty_points: Number(airtableUser.loyalty_points) || 25,
       auth_provider: "email",
     };
 
-    const token = `jhes_jwt_${Buffer.from(JSON.stringify({ sub: user.id, email: cleanEmail, role: "customer", name: user.full_name })).toString("base64url")}`;
+    const token = signSessionToken({
+      sub: user.id,
+      email: user.email,
+      role: "customer",
+      name: user.full_name,
+      auth_provider: "email",
+    });
 
     const res = NextResponse.json(
       {
@@ -84,7 +128,7 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     );
 
-    res.cookies.set("jhes_session", token, {
+    res.cookies.set(SESSION_COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

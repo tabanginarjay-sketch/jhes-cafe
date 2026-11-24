@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { airtableGet, airtableUpdate, airtableList } from "@/lib/airtable";
+import { airtableGet, airtableUpdate, airtableList, airtableDelete } from "@/lib/airtable";
+import { escapeFormulaString, getAuthenticatedAdmin, getAuthenticatedUser } from "@/lib/serverAuth";
 
 export async function GET(
   req: NextRequest,
@@ -7,14 +8,24 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    
-    // First try direct lookup by Airtable record ID
+    const cleanId = decodeURIComponent(id).trim();
+    const safeId = escapeFormulaString(cleanId);
+
+    // 1. Lookup by Airtable record ID or exact order_number (case-insensitive)
     let order: any = null;
-    try {
-      order = await airtableGet("Orders", id);
-    } catch {
-      // If not record ID, lookup by order_number formula
-      const matched = await airtableList("Orders", `{order_number} = '${id}'`, true);
+    if (cleanId.startsWith("rec")) {
+      try {
+        order = await airtableGet("Orders", cleanId);
+      } catch {
+        order = null;
+      }
+    }
+    if (!order) {
+      const matched = await airtableList(
+        "Orders",
+        `LOWER({order_number}) = '${safeId.toLowerCase()}'`,
+        true
+      );
       if (matched.length > 0) {
         order = matched[0];
       }
@@ -24,16 +35,45 @@ export async function GET(
       return NextResponse.json({ detail: "Order not found" }, { status: 404 });
     }
 
-    // Try fetching child order items
+    // 2. Fetch child OrderItems matching either Airtable order record ID OR order_number
     let items: any[] = [];
     try {
-      items = await airtableList("OrderItems", `{order_id} = '${order.id}'`, true);
-    } catch {}
+      const safeRecId = escapeFormulaString(String(order.id));
+      const safeOrderNum = escapeFormulaString(String(order.order_number || ""));
+      const itemFormula = safeOrderNum
+        ? `OR({order_id} = '${safeRecId}', {order_id} = '${safeOrderNum}')`
+        : `{order_id} = '${safeRecId}'`;
+      items = await airtableList("OrderItems", itemFormula, true);
+    } catch {
+      items = [];
+    }
 
-    return NextResponse.json({
-      ...order,
-      items,
-    });
+    // Privacy: mask email/phone for unauthenticated public tracking queries
+    const admin = getAuthenticatedAdmin(req);
+    const user = getAuthenticatedUser(req);
+    const isOwner =
+      Boolean(admin) ||
+      Boolean(
+        user?.email &&
+          order.customer_email &&
+          user.email.toLowerCase() === String(order.customer_email).toLowerCase()
+      );
+
+    const responseOrder = isOwner
+      ? order
+      : {
+          ...order,
+          customer_email: undefined,
+          customer_phone: undefined,
+        };
+
+    return NextResponse.json(
+      {
+        ...responseOrder,
+        items,
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
   } catch (err) {
     return NextResponse.json(
       { detail: err instanceof Error ? err.message : "Error retrieving order" },
@@ -46,14 +86,22 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const admin = getAuthenticatedAdmin(req);
+  if (!admin) {
+    return NextResponse.json(
+      { detail: "Administrator authentication required to update orders." },
+      { status: 401 }
+    );
+  }
+
   try {
     const { id } = await params;
     const body = await req.json();
 
-    // Find target record id
     let targetRecordId = id;
     if (!id.startsWith("rec")) {
-      const matched = await airtableList("Orders", `{order_number} = '${id}'`, true);
+      const safeId = escapeFormulaString(id);
+      const matched = await airtableList("Orders", `{order_number} = '${safeId}'`, true);
       if (matched.length === 0) {
         return NextResponse.json({ detail: "Order not found" }, { status: 404 });
       }
@@ -70,6 +118,45 @@ export async function PATCH(
   } catch (err) {
     return NextResponse.json(
       { detail: err instanceof Error ? err.message : "Error updating order" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const admin = getAuthenticatedAdmin(req);
+  if (!admin) {
+    return NextResponse.json(
+      { detail: "Administrator authentication required." },
+      { status: 401 }
+    );
+  }
+
+  try {
+    const { id } = await params;
+    // Also clean up child OrderItems & Payments linked to this order if present
+    try {
+      const safeId = escapeFormulaString(id);
+      const childItems = await airtableList("OrderItems", `{order_id} = '${safeId}'`, true);
+      for (const item of childItems) {
+        await airtableDelete("OrderItems", item.id).catch(() => {});
+      }
+      const childPayments = await airtableList("Payments", `{order_id} = '${safeId}'`, true);
+      for (const pay of childPayments) {
+        await airtableDelete("Payments", pay.id).catch(() => {});
+      }
+    } catch {
+      // Ignore child lookup errors
+    }
+
+    await airtableDelete("Orders", id);
+    return NextResponse.json({ deleted: true, id });
+  } catch (err) {
+    return NextResponse.json(
+      { detail: err instanceof Error ? err.message : "Error deleting order" },
       { status: 500 }
     );
   }

@@ -209,17 +209,64 @@ async def test_google_auth_verification():
 
 
 @pytest.mark.asyncio
-async def test_facebook_auth_prepared_endpoint():
-    """Verify Facebook Login endpoint returns structured phase 2 readiness."""
+async def test_facebook_auth_verification():
+    """Verify Facebook Login endpoint rejects invalid tokens (401) and signs in valid Graph profiles."""
+    from unittest.mock import AsyncMock, MagicMock
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        resp = await ac.post(
-            "/api/v1/auth/facebook",
-            json={"access_token": "fb_access_token_demo"},
-        )
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "prepared"
-        assert resp.json()["phase"] == 2
+        # 1. Invalid / unverified access token must be rejected with 401
+        mock_bad_resp = MagicMock()
+        mock_bad_resp.status_code = 400
+        mock_bad_resp.text = '{"error":{"message":"Invalid OAuth access token"}}'
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__.return_value = mock_client
+        mock_client.__aexit__.return_value = False
+        mock_client.get.return_value = mock_bad_resp
+
+        with patch("app.modules.auth.router.httpx.AsyncClient", return_value=mock_client):
+            bad_resp = await ac.post(
+                "/api/v1/auth/facebook",
+                json={"access_token": "invalid_fb_token"},
+            )
+            assert bad_resp.status_code == 401
+
+        # 2. Verified Graph API profile issues customer session cookie (never admin)
+        mock_ok_resp = MagicMock()
+        mock_ok_resp.status_code = 200
+        mock_ok_resp.json.return_value = {
+            "id": "102299887766",
+            "name": "Jhe Facebook Guest",
+            "picture": {"data": {"url": "https://graph.facebook.com/pic.jpg"}},
+        }
+        mock_client.get.return_value = mock_ok_resp
+
+        with (
+            patch("app.modules.auth.router.httpx.AsyncClient", return_value=mock_client),
+            patch("app.modules.auth.router.user_repo.get_by_provider_sub", new_callable=AsyncMock) as mock_sub,
+            patch("app.modules.auth.router.user_repo.get_raw_by_email", new_callable=AsyncMock) as mock_email,
+            patch("app.modules.auth.router.user_repo.create_raw", new_callable=AsyncMock) as mock_create,
+        ):
+            mock_sub.return_value = None
+            mock_email.return_value = None
+            mock_create.return_value = {
+                "id": "recFB001",
+                "full_name": "Jhe Facebook Guest",
+                "email": "fb_102299887766@jhescafe.ph",
+                "role": "customer",
+                "loyalty_points": 25,
+            }
+
+            ok_resp = await ac.post(
+                "/api/v1/auth/facebook",
+                json={"access_token": "valid_fb_token"},
+            )
+            assert ok_resp.status_code == 200
+            data = ok_resp.json()
+            assert data["user"]["role"] == "customer"
+            assert data["user"]["auth_provider"] == "facebook"
+            assert "jhes_session" in ok_resp.cookies
 
 
 @pytest.mark.asyncio

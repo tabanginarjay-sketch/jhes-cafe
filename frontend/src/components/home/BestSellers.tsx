@@ -48,11 +48,11 @@ export function BestSellers() {
     let isActive = true;
     async function loadLiveProducts() {
       try {
-        const res = await fetch(`${API_BASE_URL}/catalog/products`);
+        const res = await fetch(`${API_BASE_URL}/catalog/products`, { cache: "no-store" });
         if (res.ok && isActive) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
-            const clean = dedupeAndMergeCatalog(data, { includeMissingCanonical: true });
+            const clean = dedupeAndMergeCatalog(data, { includeMissingCanonical: false });
             setProducts(selectFeaturedSix(clean));
           }
         }
@@ -117,11 +117,15 @@ export function BestSellers() {
                     <div className="absolute inset-0 bg-gradient-to-t from-[#173D2B]/65 via-transparent to-transparent opacity-60 group-hover:opacity-90 transition-opacity duration-500" />
 
                     {/* Badge */}
-                    {product.tag && (
+                    {product.is_available === false ? (
+                      <span className="absolute top-4 left-4 px-3 py-1 rounded-full bg-rose-700/95 text-white text-[10px] font-semibold tracking-wider uppercase shadow-xs">
+                        Sold Out
+                      </span>
+                    ) : product.tag ? (
                       <span className="absolute top-4 left-4 px-3 py-1 rounded-full bg-[#173D2B]/90 backdrop-blur-md text-[#FFFCF7] text-[10px] font-semibold tracking-wider uppercase shadow-xs">
                         {product.tag}
                       </span>
-                    )}
+                    ) : null}
 
                     {/* Origin + Details Hover Hint */}
                     <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between gap-2">
@@ -164,12 +168,17 @@ export function BestSellers() {
 
                       <button
                         type="button"
-                        onClick={() => handleCustomize(product)}
-                        className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-semibold tracking-wider uppercase transition-all duration-300 cursor-pointer bg-[#173D2B] hover:bg-[#315640] text-[#FFFCF7] shadow-xs hover:shadow-md hover:scale-[1.03] active:scale-95"
+                        disabled={product.is_available === false}
+                        onClick={() => product.is_available !== false && handleCustomize(product)}
+                        className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-xs font-semibold tracking-wider uppercase transition-all duration-300 ${
+                          product.is_available === false
+                            ? "bg-[#E5DACB] text-[#573B2C]/70 cursor-not-allowed"
+                            : "cursor-pointer bg-[#173D2B] hover:bg-[#315640] text-[#FFFCF7] shadow-xs hover:shadow-md hover:scale-[1.03] active:scale-95"
+                        }`}
                         aria-label={`Customize ${product.name}`}
                       >
                         <Sliders className="w-3.5 h-3.5 text-[#C9AE8B]" />
-                        <span>Customize</span>
+                        <span>{product.is_available === false ? "Unavailable" : "Customize"}</span>
                       </button>
                     </div>
                   </div>

@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { airtableList, airtableCreate } from "@/lib/airtable";
+import {
+  SESSION_COOKIE_NAME,
+  escapeFormulaString,
+  signSessionToken,
+} from "@/lib/serverAuth";
 
 const FB_APP_ID = process.env.FACEBOOK_APP_ID || process.env.NEXT_PUBLIC_FACEBOOK_APP_ID || "";
 const FB_APP_SECRET = process.env.FACEBOOK_APP_SECRET || "";
@@ -93,10 +98,11 @@ export async function POST(req: NextRequest) {
     // Email fallback: If Facebook account didn't share an email, generate deterministic alias
     const customerEmail = verifiedEmail || `fb_${fbId}@jhescafe.ph`;
 
-    // 3. Lookup or Create User in Airtable
+    // 3. Lookup or Create User in Airtable (strictly customer role on public registration)
     let user: any = null;
     try {
-      const existing = await airtableList("Users", `LOWER({email}) = '${customerEmail}'`, true);
+      const safeEmail = escapeFormulaString(customerEmail);
+      const existing = await airtableList("Users", `LOWER({email}) = '${safeEmail}'`, true);
       if (existing.length > 0) {
         user = existing[0];
       } else {
@@ -104,6 +110,8 @@ export async function POST(req: NextRequest) {
           user = await airtableCreate("Users", {
             full_name: verifiedName,
             email: customerEmail,
+            role: "customer",
+            loyalty_points: 25,
           });
         } catch {
           user = {
@@ -133,16 +141,15 @@ export async function POST(req: NextRequest) {
     const fullName = user.full_name || verifiedName;
     const userRole = user.role || "customer";
 
-    // 4. Issue JWT / Session Cookie
-    const token = `jhes_jwt_${Buffer.from(
-      JSON.stringify({
-        sub: userId,
-        email: customerEmail,
-        role: userRole,
-        name: fullName,
-        avatar_url: avatarUrl,
-      })
-    ).toString("base64url")}`;
+    // 4. Issue HMAC-signed session token
+    const token = signSessionToken({
+      sub: userId,
+      email: customerEmail,
+      role: userRole,
+      name: fullName,
+      auth_provider: "facebook",
+      avatar_url: avatarUrl,
+    });
 
     const res = NextResponse.json({
       access_token: token,
@@ -152,14 +159,14 @@ export async function POST(req: NextRequest) {
         full_name: fullName,
         email: customerEmail,
         role: userRole,
-        loyalty_points: user.loyalty_points || 25,
+        loyalty_points: Number(user.loyalty_points) || 25,
         auth_provider: "facebook",
         avatar_url: avatarUrl,
       },
       message: `Welcome, ${fullName}!`,
     });
 
-    res.cookies.set("jhes_session", token, {
+    res.cookies.set(SESSION_COOKIE_NAME, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",

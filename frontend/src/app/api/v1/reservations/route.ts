@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { airtableList, airtableCreate } from "@/lib/airtable";
 
-// In-memory cache of reservations for fast conflict check and fallback
-let inMemoryReservations: Array<{
+interface ReservationRecord {
   id: string;
   reservation_code: string;
   date: string;
@@ -14,21 +13,16 @@ let inMemoryReservations: Array<{
   customer_phone?: string;
   special_requests?: string;
   status: string;
+  storage_mode?: "airtable" | "demo_memory";
   created_at: string;
-}> = [
-  {
-    id: "res-initial-1",
-    reservation_code: "RES-JHE-1082",
-    date: new Date().toISOString().split("T")[0],
-    time_slot: "1:00 PM – Post-Lunch Slow Drip",
-    zone: "Communal Walnut Table",
-    guests: 4,
-    customer_name: "Maria Santos",
-    customer_email: "maria@example.com",
-    status: "confirmed",
-    created_at: new Date().toISOString(),
-  },
-];
+}
+
+const globalForRes = globalThis as unknown as {
+  __jhesReservations?: ReservationRecord[];
+};
+
+const inMemoryReservations: ReservationRecord[] =
+  globalForRes.__jhesReservations || (globalForRes.__jhesReservations = []);
 
 export async function GET(req: NextRequest) {
   try {
@@ -37,25 +31,37 @@ export async function GET(req: NextRequest) {
     const zoneQuery = url.searchParams.get("zone");
 
     let liveRecords: any[] = [];
+    let storageMode: "airtable" | "demo_memory" = "airtable";
     try {
       liveRecords = await airtableList("Reservations", undefined, true);
     } catch {
+      storageMode = "demo_memory";
       liveRecords = inMemoryReservations;
     }
 
-    let filtered = liveRecords.length > 0 ? liveRecords : inMemoryReservations;
+    let filtered = liveRecords;
     if (dateQuery) {
       filtered = filtered.filter((r) => r.date === dateQuery);
     }
     if (zoneQuery) {
-      filtered = filtered.filter((r) => String(r.zone || "").toLowerCase() === zoneQuery.toLowerCase());
+      filtered = filtered.filter(
+        (r) => String(r.zone || "").toLowerCase() === zoneQuery.toLowerCase()
+      );
     }
 
     return NextResponse.json(filtered, {
-      headers: { "Cache-Control": "no-store" },
+      headers: {
+        "Cache-Control": "no-store",
+        "X-Storage-Mode": storageMode,
+      },
     });
-  } catch (err) {
-    return NextResponse.json(inMemoryReservations);
+  } catch {
+    return NextResponse.json(inMemoryReservations, {
+      headers: {
+        "Cache-Control": "no-store",
+        "X-Storage-Mode": "demo_memory",
+      },
+    });
   }
 }
 
@@ -89,12 +95,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Conflict Prevention: Check overlapping booking for same zone, date & time slot
+    // 2. Conflict Prevention
     let existingList: any[] = inMemoryReservations;
+    let airtableAvailable = false;
     try {
       const airtableData = await airtableList("Reservations", undefined, true);
-      if (airtableData.length > 0) existingList = airtableData;
-    } catch {}
+      existingList = airtableData;
+      airtableAvailable = true;
+    } catch {
+      airtableAvailable = false;
+    }
 
     const isConflict = existingList.some(
       (r) =>
@@ -107,51 +117,61 @@ export async function POST(req: NextRequest) {
     if (isConflict) {
       return NextResponse.json(
         {
-          detail: `Conflict: ${zone} is already fully booked for ${time_slot} on ${date}. Please select another time slot or seating area.`,
+          detail: `Conflict: ${zone} is already booked for ${time_slot} on ${date}. Please select another time slot or seating area.`,
           conflict: true,
         },
         { status: 409 }
       );
     }
 
-    // 3. Create Reservation
     const code = `RES-JHE-${Math.floor(1000 + Math.random() * 9000)}`;
-    const newRecord = {
+    const newRecord: ReservationRecord = {
       id: `res-${Date.now()}`,
       reservation_code: code,
       date,
       time_slot,
       zone,
       guests: Number(guests) || 2,
-      customer_name: customer_name.trim(),
-      customer_email: customer_email.trim(),
+      customer_name: String(customer_name).trim(),
+      customer_email: String(customer_email).trim().toLowerCase(),
       customer_phone: customer_phone ? String(customer_phone).trim() : undefined,
       special_requests: special_requests ? String(special_requests).trim() : undefined,
       status: "confirmed",
       created_at: new Date().toISOString(),
     };
 
-    // Attempt saving to Airtable
-    try {
-      const airtableSaved = await airtableCreate("Reservations", {
-        reservation_code: code,
-        date,
-        time_slot,
-        zone,
-        guests: Number(guests) || 2,
-        customer_name,
-        customer_email,
-        customer_phone,
-        special_requests,
-        status: "confirmed",
-      });
-      inMemoryReservations.unshift(airtableSaved as any);
-      return NextResponse.json(airtableSaved, { status: 201 });
-    } catch (airtableErr) {
-      console.warn("Airtable Reservations table not configured or schema mismatch, using persistent memory fallback:", airtableErr);
-      inMemoryReservations.unshift(newRecord);
-      return NextResponse.json(newRecord, { status: 201 });
+    if (airtableAvailable) {
+      try {
+        const airtableSaved = await airtableCreate("Reservations", {
+          reservation_code: code,
+          date,
+          time_slot,
+          zone,
+          guests: Number(guests) || 2,
+          customer_name: newRecord.customer_name,
+          customer_email: newRecord.customer_email,
+          ...(newRecord.customer_phone ? { customer_phone: newRecord.customer_phone } : {}),
+          ...(newRecord.special_requests ? { special_requests: newRecord.special_requests } : {}),
+          status: "confirmed",
+        });
+        return NextResponse.json(
+          { ...airtableSaved, storage_mode: "airtable" },
+          { status: 201 }
+        );
+      } catch {
+        // Fall through to transparent demo memory mode
+      }
     }
+
+    const memoryRecord: ReservationRecord = {
+      ...newRecord,
+      storage_mode: "demo_memory",
+    };
+    inMemoryReservations.unshift(memoryRecord);
+    return NextResponse.json(memoryRecord, {
+      status: 201,
+      headers: { "X-Storage-Mode": "demo_memory" },
+    });
   } catch (err) {
     return NextResponse.json(
       { detail: err instanceof Error ? err.message : "Error creating table reservation" },

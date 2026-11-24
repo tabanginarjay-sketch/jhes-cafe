@@ -948,7 +948,7 @@ export function ProductCustomizerModal() {
                 <div className="flex items-center justify-between pt-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold uppercase tracking-wider text-[#173D2B]">
-                      Qty
+                      {rules.productType === "cake" ? "Slices" : "Qty"}
                     </span>
                     <div className="flex items-center rounded-xl border border-[#E5DACB] bg-white overflow-hidden shadow-xs">
                       <button
@@ -986,11 +986,13 @@ export function ProductCustomizerModal() {
                 <button
                   ref={submitButtonRef}
                   type="button"
-                  disabled={isAddingToCart}
+                  disabled={isAddingToCart || activeProduct.is_available === false}
                   onClick={handleSave}
-                  className="w-full py-3.5 rounded-full bg-[#173D2B] hover:bg-[#315640] disabled:opacity-50 text-white text-xs font-semibold uppercase tracking-wider transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-3.5 rounded-full bg-[#173D2B] hover:bg-[#315640] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold uppercase tracking-wider transition-all shadow-md active:scale-98 flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  {isEditMode ? (
+                  {activeProduct.is_available === false ? (
+                    <span>Currently Unavailable</span>
+                  ) : isEditMode ? (
                     <>
                       <Check className="w-4 h-4 text-[#C9AE8B]" />
                       <span>Update in Order Bag • ₱{totalPrice}</span>

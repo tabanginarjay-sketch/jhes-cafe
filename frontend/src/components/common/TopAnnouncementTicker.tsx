@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Tag, Truck, Coffee, MapPin, Sparkles, Check, Copy } from "lucide-react";
-import Link from "next/link";
+import { Tag, Coffee, MapPin, Sparkles, Check, Copy, ShoppingBag } from "lucide-react";
+import { BRAND_CONFIG } from "@/lib/brandConfig";
 
 interface AnnouncementItem {
   id: string;
-  icon: "tag" | "truck" | "coffee" | "map" | "sparkles";
+  icon: "tag" | "bag" | "coffee" | "map" | "sparkles";
   text: string;
   code?: string;
   badge?: string;
@@ -16,32 +16,32 @@ const ITEMS: AnnouncementItem[] = [
   {
     id: "welcome",
     icon: "tag",
-    text: "Welcome to Jhe's Cafe' · Enjoy 15% off your first craft drink or bean order",
-    code: "FIRSTSIP15",
-    badge: "Code: FIRSTSIP15",
+    text: `Welcome to ${BRAND_CONFIG.name} · Demo Promo: Enjoy 15% off your order at checkout`,
+    code: BRAND_CONFIG.promo.code,
+    badge: `Code: ${BRAND_CONFIG.promo.code}`,
   },
   {
-    id: "delivery",
-    icon: "truck",
-    text: "Complimentary doorstep roastery delivery on orders over ₱800",
-    badge: "Cavite & Tagaytay",
+    id: "ordering",
+    icon: "bag",
+    text: "Online Dine-In & Takeaway ordering with real-time kitchen tracking",
+    badge: "Live Order Status",
   },
   {
     id: "roast",
     icon: "coffee",
-    text: "Small-batch single-origin Barako & Benguet beans freshly roasted this week",
+    text: "Small-batch Barako & Benguet highland coffees roasted weekly (Portfolio Showcase)",
     badge: "Fresh Roast",
   },
   {
     id: "location",
     icon: "map",
-    text: "Visit our highland lounge on Km 58 Tagaytay-Nasugbu Highway · Open daily 6:30 AM",
-    badge: "Flagship Ridge",
+    text: `${BRAND_CONFIG.location.shortAddress} · ${BRAND_CONFIG.hours.compactLabel}`,
+    badge: "Demo Flagship",
   },
   {
     id: "bakery",
     icon: "sparkles",
-    text: "In-house European viennoiserie & butter croissants baked fresh every morning",
+    text: "In-house pastries, cheesecakes, and butter croissants baked daily",
     badge: "Daily Batch",
   },
 ];
@@ -61,8 +61,8 @@ export function TopAnnouncementTicker() {
     switch (type) {
       case "tag":
         return <Tag className={iconClass} strokeWidth={1.75} />;
-      case "truck":
-        return <Truck className={iconClass} strokeWidth={1.75} />;
+      case "bag":
+        return <ShoppingBag className={iconClass} strokeWidth={1.75} />;
       case "coffee":
         return <Coffee className={iconClass} strokeWidth={1.75} />;
       case "map":

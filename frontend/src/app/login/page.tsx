@@ -34,7 +34,7 @@ function LoginForm() {
   // Auto-fill from this device's previous session if exists, and check for error param
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("brew_and_co_last_device_email");
+      const saved = localStorage.getItem("jhes_cafe_last_device_email");
       if (saved && saved.includes("@")) {
         setEmail(saved);
         setForgotEmail(saved);
@@ -205,9 +205,15 @@ function LoginForm() {
     if (!forgotEmail || !forgotEmail.includes("@")) return;
     setIsForgotLoading(true);
     try {
-      await new Promise((r) => setTimeout(r, 600));
+      const res = await fetch("/api/v1/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: forgotEmail.trim().toLowerCase() }),
+      });
+      const data = await res.json().catch(() => ({}));
       setForgotSuccess(
-        `If ${forgotEmail} is registered, password reset instructions have been dispatched.`
+        data.message ||
+          `If ${forgotEmail} is registered, password reset instructions will be sent (Portfolio Demo).`
       );
     } finally {
       setIsForgotLoading(false);

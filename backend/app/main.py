@@ -28,7 +28,7 @@ def create_app() -> FastAPI:
         version=settings.APP_VERSION,
         description=(
             "Full-stack Coffee Shop Management & Online Ordering System API "
-            "for BREW & CO., built with FastAPI, Airtable Web API, and Pydantic v2."
+            "for Jhe's Cafe', built with FastAPI, Airtable Web API, and Pydantic v2."
         ),
         docs_url="/docs",
         redoc_url="/redoc",

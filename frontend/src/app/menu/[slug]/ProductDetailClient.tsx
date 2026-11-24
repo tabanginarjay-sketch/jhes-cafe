@@ -72,14 +72,17 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     );
   });
 
+  const [liveCatalog, setLiveCatalog] = useState<CatalogProduct[]>(CENTRALIZED_CATALOG);
+
   // 2. Fetch live updates if available from backend
   useEffect(() => {
     async function checkLiveCatalog() {
       try {
-        const res = await fetch(`${API_BASE_URL}/catalog/products`);
+        const res = await fetch(`${API_BASE_URL}/catalog/products`, { cache: "no-store" });
         if (res.ok) {
           const list = await res.json();
-          if (Array.isArray(list)) {
+          if (Array.isArray(list) && list.length > 0) {
+            setLiveCatalog(list);
             const targetCanonical = resolveCanonicalSlug(slug);
             const match = list.find(
               (p: any) =>
@@ -93,6 +96,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 ...prev,
                 ...match,
                 price: Number(match.price) || prev.price,
+                is_available: match.is_available !== false,
                 image_url: getProductImage(match),
               }));
             }
@@ -915,7 +919,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
               <div className="flex items-center justify-between pt-2">
                 <div className="flex items-center gap-3">
                   <span className="text-xs font-bold uppercase tracking-wider text-[#173D2B]">
-                    Quantity
+                    {rules.productType === "cake" ? "Slice Qty" : "Quantity"}
                   </span>
                   <div className="flex items-center rounded-xl border border-[#E5DACB] bg-white overflow-hidden shadow-xs">
                     <button
@@ -949,15 +953,24 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 </div>
               </div>
 
+              {/* Availability Notice if Sold Out */}
+              {product.is_available === false && (
+                <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs font-medium text-center">
+                  This item is currently marked unavailable in our live inventory.
+                </div>
+              )}
+
               {/* Add to Bag Action Button */}
               <button
                 ref={addBtnRef}
                 type="button"
-                disabled={isAddingToCart}
+                disabled={isAddingToCart || product.is_available === false}
                 onClick={handleAdd}
-                className="w-full py-4 rounded-full bg-[#173D2B] hover:bg-[#315640] disabled:opacity-50 text-white text-xs font-semibold uppercase tracking-wider transition-all duration-300 shadow-md hover:shadow-lg hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-4 rounded-full bg-[#173D2B] hover:bg-[#315640] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold uppercase tracking-wider transition-all duration-300 shadow-md hover:shadow-lg hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
               >
-                {isAdded ? (
+                {product.is_available === false ? (
+                  <span>Currently Unavailable</span>
+                ) : isAdded ? (
                   <>
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                     <span>Added to Order Bag! • ₱{totalPrice}</span>
@@ -1000,9 +1013,10 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            {CENTRALIZED_CATALOG.filter(
+            {liveCatalog.filter(
               (p) =>
                 p.slug !== product.slug &&
+                p.is_available !== false &&
                 (["doughnut", "cake", "pastry"].includes(rules.productType)
                   ? !["doughnut", "cake", "pastry"].includes(p.product_type)
                   : ["doughnut", "cake", "pastry"].includes(p.product_type))

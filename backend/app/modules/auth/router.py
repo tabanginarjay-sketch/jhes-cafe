@@ -5,7 +5,9 @@ session token generation, HttpOnly cookie management, and Facebook login stub.
 """
 
 import logging
+import re
 from typing import Optional
+import httpx
 from fastapi import APIRouter, Cookie, Header, HTTPException, Request, Response, status
 
 from app.core.config import settings
@@ -262,7 +264,9 @@ async def register_email(
                 "email": clean_email,
             }
             if payload.phone:
-                core_data["phone"] = payload.phone.strip()
+                digits = re.sub(r"\D", "", payload.phone)
+                if len(digits) >= 7:
+                    core_data["phone"] = int(digits)
             created = await user_repo.create_raw(core_data)
             user_id = str(created.get("id"))
         except Exception as core_err:
@@ -569,13 +573,13 @@ async def authenticate_facebook(
         loyalty_points = int(user_record.get("loyalty_points", 25))
     else:
         try:
-            created_record = await user_repo.create_customer(
-                full_name=full_name,
-                email=email.lower(),
-                auth_provider="facebook",
-                provider_sub=fb_id,
-                avatar_url=picture,
-                loyalty_points=25,
+            created_record = await user_repo.create_raw(
+                {
+                    "full_name": full_name,
+                    "email": email.lower(),
+                    "role": "customer",
+                    "loyalty_points": 25,
+                }
             )
             user_record = created_record
             user_id = str(created_record.get("id"))

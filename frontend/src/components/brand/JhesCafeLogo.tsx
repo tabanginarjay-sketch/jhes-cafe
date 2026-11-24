@@ -160,5 +160,3 @@ export function JhesCafeLogo({
   );
 }
 
-export const BrewAndCoLogo = JhesCafeLogo;
-

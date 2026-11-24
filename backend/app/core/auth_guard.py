@@ -42,7 +42,7 @@ def get_current_user(
 
     return CurrentUser(
         user_id=x_user_id or "guest",
-        email=x_user_email or "guest@brewandco.ph",
+        email=x_user_email or "guest@jhescafe.ph",
         role=x_user_role or "customer",
     )
 
@@ -60,7 +60,7 @@ def require_auth(
     if not user or user.user_id == "guest":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required. Please sign in to BREW & CO.",
+            detail="Authentication required. Please sign in to Jhe's Cafe'.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user

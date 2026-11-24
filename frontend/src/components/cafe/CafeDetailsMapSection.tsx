@@ -1,11 +1,11 @@
 "use client";
 
-import { MapPin, Clock, Phone, Mail, Navigation, Car, ShieldCheck, Heart, ExternalLink } from "lucide-react";
+import { MapPin, Clock, Phone, Mail, Navigation, Car, Heart, ExternalLink } from "lucide-react";
 import { ScrollReveal } from "@/components/common/ScrollReveal";
+import { BRAND_CONFIG } from "@/lib/brandConfig";
 
 export function CafeDetailsMapSection() {
-  const googleMapsUrl =
-    "https://www.google.com/maps/search/?api=1&query=Km+58+Tagaytay-Nasugbu+Highway+Cavite+Philippines";
+  const googleMapsUrl = BRAND_CONFIG.location.googleMapsSearchUrl;
 
   return (
     <section className="py-20 lg:py-28 bg-[#FFFCF7] border-t border-[#E5DACB]">
@@ -71,24 +71,24 @@ export function CafeDetailsMapSection() {
                 <div className="flex items-start gap-3">
                   <MapPin className="w-4 h-4 text-[#173D2B] shrink-0 mt-0.5" />
                   <div>
-                    <strong className="block text-[#173D2B]">Physical Address</strong>
-                    <span>Km 58 Tagaytay-Nasugbu Highway, Cavite, Philippines</span>
+                    <strong className="block text-[#173D2B]">Physical Address (Demo Concept)</strong>
+                    <span>{BRAND_CONFIG.location.fullAddress}</span>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3">
                   <Phone className="w-4 h-4 text-[#173D2B] shrink-0 mt-0.5" />
                   <div>
-                    <strong className="block text-[#173D2B]">Concierge &amp; Reservations</strong>
-                    <span>+63 917 892 4110 / (046) 413 8820</span>
+                    <strong className="block text-[#173D2B]">Concierge &amp; Reservations (Demo)</strong>
+                    <span>{BRAND_CONFIG.contact.phoneDisplay}</span>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3">
                   <Mail className="w-4 h-4 text-[#173D2B] shrink-0 mt-0.5" />
                   <div>
-                    <strong className="block text-[#173D2B]">Direct Email</strong>
-                    <span>hello@jhescafe.com / concierge@jhescafe.com</span>
+                    <strong className="block text-[#173D2B]">Direct Email (Demo)</strong>
+                    <span>{BRAND_CONFIG.contact.email} / {BRAND_CONFIG.contact.conciergeEmail}</span>
                   </div>
                 </div>
               </div>
@@ -139,7 +139,7 @@ export function CafeDetailsMapSection() {
               <div className="absolute top-3 left-3 z-10 pointer-events-none">
                 <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-2xl bg-[#173D2B]/95 backdrop-blur-md border border-[#315640] shadow-lg text-xs font-semibold text-white">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>Jhe&apos;s Cafe&apos; Flagship Roastery • Open Now</span>
+                  <span>Jhe&apos;s Cafe&apos; Flagship Concept • Demo Location</span>
                 </div>
               </div>
 

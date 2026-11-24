@@ -1,5 +1,5 @@
 """
-In-memory thread-safe TTL Cache Manager for BREW & CO.
+In-memory thread-safe TTL Cache Manager for Jhe's Cafe'.
 
 Provides:
 - High-speed cache-aside caching for Airtable records

@@ -1,5 +1,5 @@
 """
-Thread-safe sliding-window rate limiting middleware for BREW & CO. API.
+Thread-safe sliding-window rate limiting middleware for Jhe's Cafe' API.
 
 Protects against:
 - Brute-force attacks on authentication/registration (/api/v1/users)

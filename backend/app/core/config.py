@@ -15,14 +15,14 @@ class Settings(BaseSettings):
     )
 
     # Application metadata
-    APP_NAME: str = "BREW & CO. API"
+    APP_NAME: str = "Jhe's Cafe' API"
     APP_VERSION: str = "1.0.0"
     APP_ENV: str = "production"
     DEBUG: bool = False
 
     # API & CORS
     API_V1_PREFIX: str = "/api/v1"
-    CORS_ORIGINS: str = "http://localhost:3002,http://127.0.0.1:3002"
+    CORS_ORIGINS: str = "https://jhescafe.vercel.app,http://localhost:3002,http://127.0.0.1:3002"
 
     # Airtable Web API Configuration
     AIRTABLE_PAT: str = ""
@@ -31,7 +31,7 @@ class Settings(BaseSettings):
 
     # Table Names or Table IDs (tbl...)
     AIRTABLE_TABLE_PRODUCTS: str = "tblcQD4QoANpq0ytK"
-    AIRTABLE_TABLE_CATEGORIES: str = "Categories"
+    AIRTABLE_TABLE_CATEGORIES: str = "Category"
     AIRTABLE_TABLE_ORDERS: str = "Orders"
     AIRTABLE_TABLE_ORDER_ITEMS: str = "OrderItems"
     AIRTABLE_TABLE_INVENTORY: str = "Inventory"

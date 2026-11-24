@@ -3,13 +3,16 @@ import { airtableCheckHealth } from "@/lib/airtable";
 
 export async function GET() {
   const dbHealth = await airtableCheckHealth();
+  const rssBytes = typeof process.memoryUsage === "function" ? process.memoryUsage().rss : 0;
+  const memoryRssMb = Math.round((rssBytes / (1024 * 1024)) * 10) / 10;
+  const uptimeSeconds = typeof process.uptime === "function" ? Math.round(process.uptime()) : 0;
 
   return NextResponse.json(
     {
-      status: "ok",
-      service: "Jhe's Cafe' Cloud API",
+      status: dbHealth.status === "connected" ? "ok" : "degraded",
+      service: "Jhe's Cafe' API",
       version: "1.0.0",
-      environment: process.env.NODE_ENV || "production",
+      environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "production",
       timestamp: new Date().toISOString(),
       database: {
         status: dbHealth.status,
@@ -17,31 +20,29 @@ export async function GET() {
         latency_ms: dbHealth.latency_ms,
       },
       system: {
-        uptime_seconds: process.uptime ? Math.round(process.uptime()) : 120,
-        memory_rss_mb: 48.2,
-        environment: process.env.NODE_ENV || "production",
+        uptime_seconds: uptimeSeconds,
+        memory_rss_mb: memoryRssMb,
+        environment: process.env.VERCEL_ENV || process.env.NODE_ENV || "production",
       },
       cache: {
-        active_items: 6,
-        hits: 12,
-        misses: 2,
-        total_queries: 14,
-        hit_ratio_percent: 85.7,
-        status: "operational",
+        active_items: 0,
+        hits: 0,
+        misses: 0,
+        total_queries: 0,
+        hit_ratio_percent: 0,
+        status: "direct_airtable_live",
       },
       rate_limiter: {
-        active_tracked_ips: 1,
+        active_tracked_ips: 0,
         total_throttled_requests: 0,
-        status: "active",
+        status: "edge_protected",
       },
     },
     {
       headers: {
         "X-Content-Type-Options": "nosniff",
         "X-Frame-Options": "DENY",
-        "X-RateLimit-Limit": "120",
-        "X-RateLimit-Remaining": "119",
-        "Cache-Control": "public, max-age=15, stale-while-revalidate=60",
+        "Cache-Control": "no-store",
       },
     }
   );

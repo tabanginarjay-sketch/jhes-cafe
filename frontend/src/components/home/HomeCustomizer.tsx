@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Sliders, Plus, Check, Coffee, Flame, Snowflake } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import { API_BASE_URL } from "@/lib/api";
 import { ScrollReveal } from "@/components/common/ScrollReveal";
-import { resolveCanonicalSlug } from "@/lib/productRegistry";
+import { resolveCanonicalSlug, getProductImage } from "@/lib/productRegistry";
 
 const BASE_OPTIONS = [
   {
@@ -52,6 +53,7 @@ const MILKS = [
 ];
 
 export function HomeCustomizer() {
+  const [baseOptions, setBaseOptions] = useState(BASE_OPTIONS);
   const [selectedBase, setSelectedBase] = useState(BASE_OPTIONS[0]);
   const [size, setSize] = useState<"Tall 12oz" | "Grande 16oz" | "Venti 20oz">("Grande 16oz");
   const [temperature, setTemperature] = useState<"Hot" | "Iced">("Hot");
@@ -61,6 +63,43 @@ export function HomeCustomizer() {
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const { addItem } = useCart();
+
+  // Sync live prices from Airtable database so Home Customizer always matches /menu
+  useEffect(() => {
+    let active = true;
+    async function syncLivePrices() {
+      try {
+        const res = await fetch(`${API_BASE_URL}/catalog/products`, { cache: "no-store" });
+        if (!res.ok || !active) return;
+        const products = await res.json();
+        if (!Array.isArray(products)) return;
+        setBaseOptions((prev) => {
+          const updated = prev.map((opt) => {
+            const slug = resolveCanonicalSlug(opt.name);
+            const live = products.find((p: any) => resolveCanonicalSlug(p.slug || p.name) === slug);
+            if (!live) return opt;
+            const canonicalImg = getProductImage(live);
+            return {
+              ...opt,
+              basePrice: Number(live.price) || opt.basePrice,
+              origin: live.origin || opt.origin,
+              notes: live.tasting_notes || opt.notes,
+              hotImage: canonicalImg,
+              thumb: canonicalImg,
+            };
+          });
+          setSelectedBase((curr) => updated.find((u) => u.name === curr.name) || updated[0]);
+          return updated;
+        });
+      } catch {
+        // Keep defaults on error
+      }
+    }
+    void syncLivePrices();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Price calculations (matches menu Standard Grande base pricing)
   const sizeFee = SIZES.find((s) => s.name === size)?.delta || 0;
@@ -81,6 +120,7 @@ export function HomeCustomizer() {
 
   const handleAdd = () => {
     const slug = resolveCanonicalSlug(selectedBase.name);
+    const consistentImage = getProductImage({ slug, name: selectedBase.name });
     addItem(
       {
         productId: slug,
@@ -93,7 +133,7 @@ export function HomeCustomizer() {
         temperature: isColdBrew ? "Iced" : temperature,
         milk: milk,
         sweetness: sweetness,
-        imageUrl: activeImage,
+        imageUrl: consistentImage,
         customizationSummary: `${size} · ${isColdBrew ? "Iced" : temperature} · ${milk} · ${sweetness}% sweet`,
       },
       1,
@@ -138,7 +178,7 @@ export function HomeCustomizer() {
                 </label>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  {BASE_OPTIONS.map((item) => {
+                  {baseOptions.map((item) => {
                     const active = selectedBase.name === item.name;
                     return (
                       <button

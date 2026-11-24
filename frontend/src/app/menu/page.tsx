@@ -12,7 +12,7 @@ import {
   CatalogProduct,
 } from "@/lib/productRegistry";
 
-const CATEGORIES = [
+const DEFAULT_CATEGORIES = [
   "All",
   "Signature Espresso",
   "Cold Brews",
@@ -23,6 +23,7 @@ const CATEGORIES = [
 export default function MenuPage() {
   const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [menuItems, setMenuItems] = useState<CatalogProduct[]>(CENTRALIZED_CATALOG);
   const { setQuickCustomizeProduct } = useCart();
 
@@ -30,15 +31,31 @@ export default function MenuPage() {
     let isActive = true;
     async function loadMenu() {
       try {
-        const res = await fetch(`${API_BASE_URL}/catalog/products`);
-        if (res.ok && isActive) {
-          const data = await res.json();
+        const [prodRes, catRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/catalog/products`, { cache: "no-store" }),
+          fetch(`${API_BASE_URL}/catalog/categories`, { cache: "no-store" }),
+        ]);
+
+        if (prodRes.ok && isActive) {
+          const data = await prodRes.json();
           if (Array.isArray(data) && data.length > 0) {
-            setMenuItems(dedupeAndMergeCatalog(data, { includeMissingCanonical: true }));
+            setMenuItems(dedupeAndMergeCatalog(data, { includeMissingCanonical: false }));
+          }
+        }
+
+        if (catRes.ok && isActive) {
+          const catData = await catRes.json();
+          if (Array.isArray(catData) && catData.length > 0) {
+            const activeNames = catData
+              .filter((c: any) => c.is_active !== false && c.name)
+              .map((c: any) => String(c.name).trim());
+            if (activeNames.length > 0) {
+              setCategories(["All", ...Array.from(new Set(activeNames))]);
+            }
           }
         }
       } catch {
-        // Keep CENTRALIZED_CATALOG
+        // Keep CENTRALIZED_CATALOG fallback on network failure
       }
     }
     void loadMenu();
@@ -49,11 +66,11 @@ export default function MenuPage() {
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = { All: menuItems.length };
-    for (const cat of CATEGORIES.slice(1)) {
+    for (const cat of categories.slice(1)) {
       counts[cat] = menuItems.filter((item) => item.category_name === cat).length;
     }
     return counts;
-  }, [menuItems]);
+  }, [menuItems, categories]);
 
   const filteredItems = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -120,7 +137,7 @@ export default function MenuPage() {
 
           {/* Category Pills Filter with Live Counts */}
           <div className="flex items-center justify-center gap-2 flex-wrap">
-            {CATEGORIES.map((category) => {
+            {categories.map((category) => {
               const isActive = activeCategory === category;
               const count = categoryCounts[category] ?? 0;
               return (
@@ -183,12 +200,15 @@ export default function MenuPage() {
             {filteredItems.map((item, idx) => {
               const imageUrl = getProductImage(item);
               const staggerDelay = Math.min(idx * 45, 320);
+              const isAvailable = item.is_available !== false;
 
               return (
                 <article
                   key={item.slug}
                   style={{ animationDelay: `${staggerDelay}ms` }}
-                  className="group rounded-3xl border border-[#E5DACB] bg-white overflow-hidden shadow-xs hover-card-elevate hover:border-[#C9AE8B] flex flex-col justify-between animate-card-enter"
+                  className={`group rounded-3xl border border-[#E5DACB] bg-white overflow-hidden shadow-xs hover-card-elevate hover:border-[#C9AE8B] flex flex-col justify-between animate-card-enter ${
+                    !isAvailable ? "opacity-80" : ""
+                  }`}
                 >
                   {/* Clickable Photo & Tag Header */}
                   <Link
@@ -199,7 +219,9 @@ export default function MenuPage() {
                       src={imageUrl}
                       alt={item.name}
                       loading={idx < 6 ? "eager" : "lazy"}
-                      className="w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-108"
+                      className={`w-full h-full object-cover transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-108 ${
+                        !isAvailable ? "grayscale-[45%] brightness-75" : ""
+                      }`}
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent transition-opacity duration-500 group-hover:from-black/75 pointer-events-none" />
 
@@ -208,11 +230,15 @@ export default function MenuPage() {
                         <span className="px-3 py-1 rounded-full bg-[#173D2B]/90 backdrop-blur-md text-[#C9AE8B] text-[10px] font-mono font-bold uppercase tracking-widest shadow-xs">
                           {item.category_name}
                         </span>
-                        {item.tag && (
+                        {!isAvailable ? (
+                          <span className="px-2.5 py-1 rounded-full bg-rose-700/95 text-white text-[10px] font-mono font-bold uppercase tracking-wider shadow-xs">
+                            Sold Out
+                          </span>
+                        ) : item.tag ? (
                           <span className="px-2.5 py-1 rounded-full bg-[#FFFCF7]/92 backdrop-blur-md text-[#573B2C] text-[10px] font-mono font-bold uppercase tracking-wider shadow-xs">
                             {item.tag}
                           </span>
-                        )}
+                        ) : null}
                       </div>
                     </div>
 
@@ -257,11 +283,16 @@ export default function MenuPage() {
 
                       <button
                         type="button"
-                        onClick={() => handleCustomize(item)}
-                        className="px-4 py-2.5 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white text-xs font-semibold uppercase tracking-wider transition-all duration-300 shadow-xs hover:shadow-md flex items-center gap-1.5 cursor-pointer hover:scale-[1.03] active:scale-95"
+                        disabled={!isAvailable}
+                        onClick={() => isAvailable && handleCustomize(item)}
+                        className={`px-4 py-2.5 rounded-full text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-1.5 ${
+                          isAvailable
+                            ? "bg-[#173D2B] hover:bg-[#315640] text-white shadow-xs hover:shadow-md cursor-pointer hover:scale-[1.03] active:scale-95"
+                            : "bg-[#E5DACB] text-[#573B2C]/70 cursor-not-allowed"
+                        }`}
                       >
                         <Sliders className="w-3.5 h-3.5 text-[#C9AE8B]" />
-                        <span>Customize</span>
+                        <span>{isAvailable ? "Customize" : "Unavailable"}</span>
                       </button>
                     </div>
                   </div>

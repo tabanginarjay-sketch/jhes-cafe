@@ -1,5 +1,5 @@
 """
-Security headers and defense-in-depth middleware for BREW & CO. API.
+Security headers and defense-in-depth middleware for Jhe's Cafe' API.
 
 Adds essential HTTP security headers recommended by OWASP to mitigate:
 - Clickjacking (X-Frame-Options)

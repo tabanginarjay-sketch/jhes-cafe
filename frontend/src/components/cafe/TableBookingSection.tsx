@@ -415,7 +415,7 @@ export function TableBookingSection({
                 Sign In to Reserve Your Table
               </h3>
               <p className="text-xs text-[#573B2C] leading-relaxed">
-                Table bookings are reserved for registered **Jhe&apos;s Cafe&apos;** members. Sign in with your existing account or create a new account in seconds.
+                Table bookings are reserved for registered <strong>Jhe&apos;s Cafe&apos;</strong> members. Sign in with your existing account or create a new account in seconds.
               </p>
             </div>
 

@@ -48,6 +48,7 @@ async def get_order(order_id: str) -> OrderResponse:
 
 
 @router.patch("/{order_id}/status", response_model=OrderResponse, summary="Update order preparation or payment status")
+@router.patch("/{order_id}", response_model=OrderResponse, summary="Update order status (REST alias)")
 async def update_order_status(order_id: str, payload: OrderUpdateStatus) -> OrderResponse:
     try:
         updated = await order_repo.update(order_id, payload)
