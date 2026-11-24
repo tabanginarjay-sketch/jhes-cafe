@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { airtableList, airtableCreate, airtableUpdate } from "@/lib/airtable";
 import { BRAND_CONFIG } from "@/lib/brandConfig";
@@ -11,6 +12,36 @@ import {
 } from "@/lib/serverAuth";
 
 const PRODUCTS_TABLE = "tblcQD4QoANpq0ytK";
+const ALLOWED_PAYMENT_METHODS = new Set(["gcash", "maya", "card", "cash"]);
+const ALLOWED_DINING_OPTIONS = new Set(["Dine-in", "Takeaway"]);
+const SPECIAL_INSTRUCTIONS_MAX_LEN = 200;
+const IDEMPOTENCY_TTL_MS = 5 * 60 * 1000;
+
+// In-memory fast-path guards against concurrent double-clicks on warm instances
+const inFlightIdempotencyKeys = new Set<string>();
+const recentIdempotencyOrders = new Map<
+  string,
+  { orderNumber: string; orderId: string; expiresAt: number }
+>();
+
+function pruneExpiredIdempotencyEntries() {
+  const now = Date.now();
+  for (const [key, entry] of recentIdempotencyOrders.entries()) {
+    if (entry.expiresAt <= now) {
+      recentIdempotencyOrders.delete(key);
+    }
+  }
+}
+
+function buildIdempotencyTag(ownerKey: string, rawKey: string): string {
+  const digest = crypto
+    .createHash("sha256")
+    .update(`${ownerKey}:${rawKey}`)
+    .digest("hex")
+    .slice(0, 12)
+    .toUpperCase();
+  return `IDEM-${digest}`;
+}
 
 function calculateItemDelta(item: any, isFood: boolean): number {
   let delta = 0;
@@ -90,11 +121,31 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // 1. Strict Server-Side Authentication Validation (guests cannot submit orders)
+  const admin = getAuthenticatedAdmin(req);
+  const user = getAuthenticatedUser(req);
+
+  if (!user && !admin) {
+    return NextResponse.json(
+      { detail: "Authentication required to place an order. Please sign in first." },
+      { status: 401 }
+    );
+  }
+
+  let acquiredIdemTag: string | null = null;
+
   try {
     const body = await req.json();
 
-    // 1. Validate customer info
-    const customerName = String(body.customer_name || "").trim();
+    // 2. Bind order ownership strictly to authenticated session email for customer requests
+    const verifiedCustomerEmail =
+      !admin && user?.email
+        ? user.email.trim().toLowerCase()
+        : body.customer_email
+          ? String(body.customer_email).trim().toLowerCase()
+          : admin?.email?.trim().toLowerCase() || undefined;
+
+    const customerName = String(body.customer_name || user?.name || "").trim();
     if (!customerName || customerName.length < 2) {
       return NextResponse.json(
         { detail: "Customer name is required (minimum 2 characters)." },
@@ -110,7 +161,86 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Fetch live Products from Airtable for database-driven prices & availability checks
+    // 3. Validate payment method, dining option, and special instructions length
+    const rawPaymentMethod = String(body.payment_method || "gcash").trim().toLowerCase();
+    if (!ALLOWED_PAYMENT_METHODS.has(rawPaymentMethod)) {
+      return NextResponse.json(
+        { detail: "Unsupported payment method. Choose GCash, Maya, Credit / Debit Card, or Counter Cash." },
+        { status: 400 }
+      );
+    }
+
+    const rawDiningOption = String(body.dining_option || "Dine-in").trim();
+    const diningOption = ALLOWED_DINING_OPTIONS.has(rawDiningOption) ? rawDiningOption : "Dine-in";
+
+    const rawSpecialNotes = body.special_notes ? String(body.special_notes).trim() : "";
+    if (rawSpecialNotes.length > SPECIAL_INSTRUCTIONS_MAX_LEN) {
+      return NextResponse.json(
+        { detail: `Special instructions cannot exceed ${SPECIAL_INSTRUCTIONS_MAX_LEN} characters.` },
+        { status: 400 }
+      );
+    }
+
+    // 4. Duplicate Order Submission Guard (Idempotency Key + Airtable Verification)
+    pruneExpiredIdempotencyEntries();
+    const rawIdempotencyKey = String(
+      req.headers.get("x-idempotency-key") || body.idempotency_key || ""
+    ).trim();
+
+    if (rawIdempotencyKey) {
+      const idemTag = buildIdempotencyTag(verifiedCustomerEmail || user?.sub || "member", rawIdempotencyKey);
+      if (inFlightIdempotencyKeys.has(idemTag)) {
+        return NextResponse.json(
+          {
+            detail: "This order is already being submitted. Duplicate request prevented.",
+            duplicate_prevented: true,
+          },
+          { status: 409 }
+        );
+      }
+      const recent = recentIdempotencyOrders.get(idemTag);
+      if (recent) {
+        return NextResponse.json(
+          {
+            detail: `Duplicate order submission prevented. Order #${recent.orderNumber} was already created.`,
+            duplicate_prevented: true,
+            existing_order_number: recent.orderNumber,
+            existing_order_id: recent.orderId,
+          },
+          { status: 409 }
+        );
+      }
+
+      // Acquire in-flight lock before async Airtable checks
+      inFlightIdempotencyKeys.add(idemTag);
+      acquiredIdemTag = idemTag;
+
+      // Cross-instance durable duplicate check in Airtable Payments.transaction_id
+      try {
+        const safeTag = escapeFormulaString(idemTag);
+        const existingPayments = await airtableList(
+          "Payments",
+          `FIND('${safeTag}', {transaction_id})`,
+          true
+        );
+        if (existingPayments.length > 0) {
+          const existingRef = String(existingPayments[0].order_number || "");
+          return NextResponse.json(
+            {
+              detail: `Duplicate order submission prevented. Order #${existingRef} has already been recorded.`,
+              duplicate_prevented: true,
+              existing_order_number: existingRef,
+              existing_order_id: existingPayments[0].order_id,
+            },
+            { status: 409 }
+          );
+        }
+      } catch {
+        // Proceed with in-memory lock if Payments table check fails transiently
+      }
+    }
+
+    // 5. Fetch live Products from Airtable for database-driven prices & availability checks
     const liveProducts: any[] = await airtableList(PRODUCTS_TABLE, undefined, true).catch(() => []);
     const findLiveProduct = (item: any) => {
       const targetSlug = resolveCanonicalSlug(item.product_name || item.name || item.product_id);
@@ -123,7 +253,7 @@ export async function POST(req: NextRequest) {
       );
     };
 
-    // 3. Server-side price verification and food vs drink normalization
+    // 6. Server-side price verification and food vs drink normalization
     let calculatedSubtotal = 0;
     const verifiedItems: any[] = [];
     let coffeeDrinkCount = 0;
@@ -132,7 +262,6 @@ export async function POST(req: NextRequest) {
 
     for (const item of items) {
       const liveProd = findLiveProduct(item);
-      // Airtable omits unchecked checkbox keys (undefined === false)
       if (liveProd && !Boolean(liveProd.is_available)) {
         return NextResponse.json(
           { detail: `"${liveProd.name}" is currently unavailable and cannot be ordered.` },
@@ -146,16 +275,16 @@ export async function POST(req: NextRequest) {
         category_name: liveProd?.category_name || item.category,
       });
       const isFood = ["cake", "doughnut", "pastry"].includes(productType) || Boolean(item.is_bakery);
-      const qty = Math.max(1, Number(item.quantity) || 1);
+      const qty = Math.max(1, Math.min(20, Math.floor(Number(item.quantity) || 1)));
 
-      const dbBasePrice = liveProd?.price !== undefined ? Number(liveProd.price) : Number(item.unit_price || item.price) || 200;
+      const dbBasePrice =
+        liveProd?.price !== undefined ? Number(liveProd.price) : Number(item.unit_price || item.price) || 200;
       const optionDelta = calculateItemDelta(item, isFood);
       const verifiedUnitPrice = Math.max(50, dbBasePrice + optionDelta);
       const verifiedSubtotal = verifiedUnitPrice * qty;
 
       calculatedSubtotal += verifiedSubtotal;
 
-      // Track accurate ingredient consumption by product type & customization
       if (productType === "coffee" || productType === "cold_brew") {
         coffeeDrinkCount += qty;
       }
@@ -187,7 +316,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 4. Optional Demo Promo Code (FIRSTSIP15 = 15% off)
+    // 7. Optional Demo Promo Code (FIRSTSIP15 = 15% off)
     const rawPromo = String(body.promo_code || "").trim().toUpperCase();
     const promoApplied = rawPromo === BRAND_CONFIG.promo.code ? rawPromo : null;
     const discountAmount = promoApplied
@@ -195,28 +324,61 @@ export async function POST(req: NextRequest) {
       : 0;
     const finalTotal = Math.max(0, Math.round((calculatedSubtotal - discountAmount) * 100) / 100);
 
-    const orderNumber =
-      typeof body.order_number === "string" && body.order_number.startsWith("JHE-")
-        ? body.order_number
+    // Ensure unique JHE- order number
+    let orderNumber =
+      typeof body.order_number === "string" && /^JHE-[A-Z0-9-]{4,24}$/.test(body.order_number.trim())
+        ? body.order_number.trim()
         : `JHE-2026-${Math.floor(10000 + Math.random() * 90000)}`;
 
+    try {
+      const safeOrderNum = escapeFormulaString(orderNumber);
+      const existingByNum = await airtableList("Orders", `{order_number} = '${safeOrderNum}'`, true);
+      if (existingByNum.length > 0) {
+        if (rawIdempotencyKey) {
+          return NextResponse.json(
+            {
+              detail: `Duplicate order submission prevented. Order #${orderNumber} already exists.`,
+              duplicate_prevented: true,
+              existing_order_number: orderNumber,
+              existing_order_id: existingByNum[0].id,
+            },
+            { status: 409 }
+          );
+        }
+        orderNumber = `JHE-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+      }
+    } catch {
+      // Ignore collision lookup error
+    }
+
     const numericPhone = sanitizeNumericPhone(body.customer_phone);
+    const seatingZone = body.seating_zone ? String(body.seating_zone).trim().slice(0, 60) : "";
+    const tableNumber = body.table_number ? String(body.table_number).trim().slice(0, 20) : "";
+    const diningMeta =
+      diningOption === "Dine-in"
+        ? [seatingZone ? `Area: ${seatingZone}` : null, tableNumber ? `Table: ${tableNumber}` : null]
+            .filter(Boolean)
+            .join(", ")
+        : "Counter Pickup";
+
     const specialNotes = [
-      body.special_notes ? String(body.special_notes).trim() : null,
+      diningMeta || null,
+      rawSpecialNotes || null,
       promoApplied ? `Promo applied: ${promoApplied} (-₱${discountAmount})` : null,
     ]
       .filter(Boolean)
       .join(" | ");
 
-    // 5. Persist primary Order record in Airtable (payment_status ALWAYS pending until confirmed)
+    // 8. Persist primary Order record in Airtable
+    // Strictly separate status ("pending") and payment_status ("pending"); NEVER trust client status
     const orderFields: Record<string, unknown> = {
       order_number: orderNumber,
       customer_name: customerName,
       ...(numericPhone !== undefined ? { customer_phone: numericPhone } : {}),
-      ...(body.customer_email ? { customer_email: String(body.customer_email).trim().toLowerCase() } : {}),
-      dining_option: body.dining_option || "Dine-in",
+      ...(verifiedCustomerEmail ? { customer_email: verifiedCustomerEmail } : {}),
+      dining_option: diningOption,
       status: "pending",
-      payment_method: body.payment_method || "gcash",
+      payment_method: rawPaymentMethod,
       payment_status: "pending",
       total_amount: finalTotal,
       ...(specialNotes ? { special_notes: specialNotes } : {}),
@@ -224,7 +386,15 @@ export async function POST(req: NextRequest) {
 
     const createdOrder: any = await airtableCreate("Orders", orderFields);
 
-    // 6. Persist child OrderItems records (food items have NO size/temperature/milk_type/sweetness)
+    if (acquiredIdemTag) {
+      recentIdempotencyOrders.set(acquiredIdemTag, {
+        orderNumber,
+        orderId: createdOrder.id,
+        expiresAt: Date.now() + IDEMPOTENCY_TTL_MS,
+      });
+    }
+
+    // 9. Persist child OrderItems records (food items strictly omit drink columns)
     const createdItems: any[] = [];
     for (const item of verifiedItems) {
       try {
@@ -248,24 +418,27 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 7. Create a matching PENDING payment record in Airtable Payments table
+    // 10. Create a matching PENDING payment record in Airtable Payments table
     let paymentRecord: any = null;
     try {
       const paymentRef = `PAY-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+      const txPrefix =
+        rawPaymentMethod === "cash" ? "COUNTER-CASH-PENDING" : "DEMO-SIMULATED-PENDING";
+      const txId = `${txPrefix}-${orderNumber}${acquiredIdemTag ? `-${acquiredIdemTag}` : ""}`;
       paymentRecord = await airtableCreate("Payments", {
         payment_ref: paymentRef,
         order_id: createdOrder.id,
         order_number: orderNumber,
         amount: finalTotal,
-        provider: String(body.payment_method || "gcash"),
-        status: "pending", // NEVER mark completed without actual payment confirmation
-        transaction_id: `AWAITING-CONFIRMATION-${orderNumber}`,
+        provider: rawPaymentMethod,
+        status: "pending", // NEVER mark paid/completed without verified confirmation
+        transaction_id: txId,
       });
     } catch (payErr) {
       console.warn("Payment record creation warning:", payErr);
     }
 
-    // 8. Accurate ingredient-based Inventory deduction (only deduct what was actually ordered)
+    // 11. Accurate ingredient-based Inventory deduction
     const inventoryUpdates: Array<{ item: string; deducted: number; remaining: number }> = [];
     if (coffeeDrinkCount > 0 || oatMilkCount > 0 || honeyUsageCount > 0) {
       try {
@@ -303,11 +476,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 9. Award loyalty points to customer record in Airtable Users if email matches
+    // 12. Award loyalty points to authenticated customer record in Airtable Users
     const pointsEarned = Math.floor(finalTotal / 50);
-    if (pointsEarned > 0 && body.customer_email) {
+    if (pointsEarned > 0 && verifiedCustomerEmail) {
       try {
-        const safeEmail = escapeFormulaString(String(body.customer_email).trim().toLowerCase());
+        const safeEmail = escapeFormulaString(verifiedCustomerEmail);
         const userMatches = await airtableList("Users", `LOWER({email}) = '${safeEmail}'`, true);
         if (userMatches.length > 0) {
           const cust: any = userMatches[0];
@@ -330,6 +503,7 @@ export async function POST(req: NextRequest) {
         total_amount: finalTotal,
         payment_status: "pending",
         status: "pending",
+        payment_mode: rawPaymentMethod === "cash" ? "counter_cash" : "demo_simulated",
         payment: paymentRecord,
         inventory_updates: inventoryUpdates,
         items: createdItems.length > 0 ? createdItems : verifiedItems,
@@ -341,5 +515,9 @@ export async function POST(req: NextRequest) {
       { detail: err instanceof Error ? err.message : "Error placing order" },
       { status: 500 }
     );
+  } finally {
+    if (acquiredIdemTag) {
+      inFlightIdempotencyKeys.delete(acquiredIdemTag);
+    }
   }
 }

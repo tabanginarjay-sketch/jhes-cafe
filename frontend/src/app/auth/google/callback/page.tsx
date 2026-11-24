@@ -73,7 +73,7 @@ function GoogleCallbackContent() {
     if (!code) {
       // Check if session exists in localStorage
       try {
-        const stored = localStorage.getItem("brew_and_co_user");
+        const stored = localStorage.getItem("jhes_cafe_user");
         if (stored) {
           setStatus("success");
           const t = setTimeout(() => router.push(targetUrl), 300);
@@ -105,7 +105,7 @@ function GoogleCallbackContent() {
 
         // If local user was successfully populated, treat as success
         try {
-          const stored = localStorage.getItem("brew_and_co_user");
+          const stored = localStorage.getItem("jhes_cafe_user");
           if (stored) {
             setStatus("success");
             setTimeout(() => router.push(targetUrl), 300);

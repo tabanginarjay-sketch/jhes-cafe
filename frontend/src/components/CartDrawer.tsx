@@ -92,7 +92,38 @@ export function CartDrawer() {
 
           {/* Cart Item List */}
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3.5">
-            {items.length === 0 ? (
+            {!user ? (
+              <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-5 animate-fade-in">
+                <div className="w-16 h-16 rounded-full bg-[#F5F0E7] flex items-center justify-center text-[#173D2B]">
+                  <Lock className="w-7 h-7 text-[#315640]" />
+                </div>
+                <div className="space-y-1.5">
+                  <p className="font-serif text-lg font-bold text-[#173D2B]">
+                    Sign in to access your bag
+                  </p>
+                  <p className="text-xs text-[#573B2C] max-w-xs leading-relaxed">
+                    Browse and customize any item on our menu as a guest, then sign in to save drinks and pastries to your member bag.
+                  </p>
+                </div>
+                <div className="w-full max-w-xs space-y-2.5 pt-1">
+                  <Link
+                    href="/login?redirect=/menu"
+                    onClick={() => setIsCartOpen(false)}
+                    className="w-full py-3 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-sm"
+                  >
+                    <span>Sign In</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-[#C9AE8B]" />
+                  </Link>
+                  <Link
+                    href="/register?redirect=/menu"
+                    onClick={() => setIsCartOpen(false)}
+                    className="w-full py-2.5 rounded-full border border-[#173D2B] text-[#173D2B] hover:bg-[#F5F0E7] text-xs font-semibold uppercase tracking-wider flex items-center justify-center transition-all"
+                  >
+                    <span>Create Member Account</span>
+                  </Link>
+                </div>
+              </div>
+            ) : items.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-4 animate-fade-in">
                 <div className="w-16 h-16 rounded-full bg-[#F5F0E7] flex items-center justify-center text-[#573B2C]">
                   <ShoppingBag className="w-8 h-8 opacity-40" />
@@ -132,7 +163,7 @@ export function CartDrawer() {
                     {/* Details */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
-                        <h4 className="font-serif text-sm sm:text-base font-bold text-[#173D2B] truncate">
+                        <h4 className="font-serif text-sm sm:text-base font-bold text-[#173D2B] leading-snug">
                           {item.name}
                         </h4>
                         <span className="font-mono text-sm font-bold text-[#173D2B] shrink-0">

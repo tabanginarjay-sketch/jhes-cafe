@@ -44,7 +44,7 @@ import {
 
 export default function ProductDetailClient({ slug }: { slug: string }) {
   const { addItem, isAddingToCart } = useCart();
-  const addBtnRef = useRef<HTMLButtonElement | null>(null);
+  const productImageRef = useRef<HTMLDivElement | null>(null);
 
   // 1. Initial product resolution from centralized registry
   const canonical = getCanonicalProduct(slug);
@@ -252,7 +252,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     const summary = summaryParts.join(" · ");
     const isFood = ["doughnut", "cake", "pastry"].includes(rules.productType);
 
-    addItem(
+    const didAdd = addItem(
       {
         productId: product.id,
         slug: product.slug,
@@ -280,11 +280,13 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         customizationSummary: summary,
       },
       quantity,
-      addBtnRef.current
+      productImageRef.current
     );
 
-    setIsAdded(true);
-    setTimeout(() => setIsAdded(false), 1800);
+    if (didAdd) {
+      setIsAdded(true);
+      setTimeout(() => setIsAdded(false), 1800);
+    }
   };
 
   return (
@@ -791,7 +793,11 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             <div className="rounded-3xl border border-[#E5DACB] bg-[#F5F0E7] p-6 sm:p-8 space-y-6 shadow-md">
               
               {/* Product Photograph Preview */}
-              <div className="relative w-full h-64 rounded-2xl overflow-hidden border border-[#E5DACB] bg-[#173D2B] shadow-inner">
+              <div
+                ref={productImageRef}
+                data-product-hero-image="true"
+                className="relative w-full h-64 rounded-2xl overflow-hidden border border-[#E5DACB] bg-[#173D2B] shadow-inner"
+              >
                 <img
                   src={resolvedImage}
                   alt={product.name}
@@ -962,7 +968,6 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
               {/* Add to Bag Action Button */}
               <button
-                ref={addBtnRef}
                 type="button"
                 disabled={isAddingToCart || product.is_available === false}
                 onClick={handleAdd}

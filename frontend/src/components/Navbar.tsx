@@ -99,19 +99,23 @@ export function Navbar() {
               </Link>
             )}
 
-            {/* Shopping Cart Button with Animated Pop on Badge Change */}
+            {/* Shopping Cart Button with Animated Pop on Landing & Badge Change */}
             <button
               type="button"
               id="navbar-cart-btn"
               onClick={toggleCart}
-              className="relative flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-[#173D2B] hover:bg-[#315640] text-[#F5F0E7] text-xs font-semibold tracking-wider transition-all duration-300 shadow-sm hover:shadow-md hover:scale-[1.03] active:scale-95 cursor-pointer"
+              aria-label={`Open shopping bag${totalCount > 0 ? `, ${totalCount} items` : ""}`}
+              className="group relative flex items-center gap-2.5 px-4 py-2.5 rounded-full bg-[#173D2B] hover:bg-[#315640] text-[#F5F0E7] text-xs font-semibold tracking-wider transition-all duration-300 shadow-sm hover:shadow-md hover:scale-[1.03] active:scale-95 cursor-pointer"
             >
-              <ShoppingBag className="w-4 h-4 text-[#C9AE8B] transition-transform duration-300 group-hover:-rotate-6" />
+              <span id="navbar-cart-icon" className="inline-flex items-center justify-center">
+                <ShoppingBag className="w-4 h-4 text-[#C9AE8B] transition-transform duration-300 group-hover:-rotate-6" />
+              </span>
               <span className="hidden sm:inline">Cart</span>
               {totalCount > 0 && (
                 <span
+                  id="navbar-cart-count"
                   key={totalCount}
-                  className="flex items-center justify-center w-5 h-5 rounded-full bg-[#C9AE8B] text-[#173D2B] text-[11px] font-bold animate-cart-pop shadow-xs"
+                  className="flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-[#C9AE8B] text-[#173D2B] text-[11px] font-bold animate-badge-pop shadow-xs"
                 >
                   {totalCount}
                 </span>

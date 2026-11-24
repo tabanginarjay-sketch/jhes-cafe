@@ -76,7 +76,36 @@ export default function CartPage() {
         </div>
 
         {/* Content Area */}
-        {items.length === 0 ? (
+        {!user ? (
+          <div className="rounded-3xl border border-[#E5DACB] bg-white p-10 sm:p-16 text-center space-y-6 max-w-xl mx-auto shadow-sm">
+            <div className="w-16 h-16 rounded-full bg-[#F5F0E7] flex items-center justify-center text-[#173D2B] mx-auto">
+              <Lock className="w-8 h-8 text-[#315640]" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="font-serif text-2xl font-bold text-[#173D2B]">
+                Sign in to view your account bag
+              </h2>
+              <p className="text-sm text-[#573B2C] max-w-md mx-auto leading-relaxed">
+                Shopping bags at <strong>Jhe&apos;s Cafe&apos;</strong> are linked to your member account so your customized drinks and pastries remain saved securely.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <Link
+                href="/login?redirect=/cart"
+                className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white text-xs font-semibold uppercase tracking-wider transition-all shadow-md inline-flex items-center justify-center gap-2"
+              >
+                <span>Sign In</span>
+                <ArrowRight className="w-4 h-4 text-[#C9AE8B]" />
+              </Link>
+              <Link
+                href="/register?redirect=/cart"
+                className="w-full sm:w-auto px-8 py-3.5 rounded-full border border-[#173D2B] text-[#173D2B] hover:bg-[#F5F0E7] text-xs font-semibold uppercase tracking-wider transition-all inline-flex items-center justify-center"
+              >
+                <span>Create Account</span>
+              </Link>
+            </div>
+          </div>
+        ) : items.length === 0 ? (
           /* Empty Bag State */
           <div className="rounded-3xl border border-[#E5DACB] bg-[#F5F0E7]/40 p-12 sm:p-20 text-center space-y-6 max-w-2xl mx-auto">
             <div className="w-20 h-20 rounded-full bg-[#E5DACB] flex items-center justify-center text-[#573B2C] mx-auto shadow-inner">
@@ -129,7 +158,7 @@ export default function CartPage() {
                         </span>
                       </div>
 
-                      <h3 className="font-serif text-lg sm:text-xl font-bold text-[#173D2B] truncate">
+                      <h3 className="font-serif text-lg sm:text-xl font-bold text-[#173D2B] leading-snug">
                         {item.name}
                       </h3>
 

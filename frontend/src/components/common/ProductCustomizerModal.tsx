@@ -72,7 +72,7 @@ export function ProductCustomizerModal() {
   const [quantity, setQuantity] = useState<number>(1);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  const submitButtonRef = useRef<HTMLButtonElement | null>(null);
+  const productImageRef = useRef<HTMLDivElement | null>(null);
 
   // Escape key close & scroll lock when modal is open
   useEffect(() => {
@@ -323,7 +323,7 @@ export function ProductCustomizerModal() {
           customizationSummary: summary,
         },
         quantity,
-        submitButtonRef.current
+        productImageRef.current
       );
       handleClose();
     }
@@ -823,7 +823,11 @@ export function ProductCustomizerModal() {
               <div className="lg:col-span-5 rounded-3xl border border-[#E5DACB] bg-[#F5F0E7] p-5 space-y-4 shadow-md sticky top-0">
                 
                 {/* Photo Preview - Always Deterministic and High-Res */}
-                <div className="relative w-full h-44 rounded-2xl overflow-hidden border border-[#E5DACB] bg-[#173D2B]">
+                <div
+                  ref={productImageRef}
+                  data-product-hero-image="true"
+                  className="relative w-full h-44 rounded-2xl overflow-hidden border border-[#E5DACB] bg-[#173D2B]"
+                >
                   <img
                     src={resolvedImage}
                     alt={activeProduct.name}
@@ -984,7 +988,6 @@ export function ProductCustomizerModal() {
 
                 {/* Submit Action Button */}
                 <button
-                  ref={submitButtonRef}
                   type="button"
                   disabled={isAddingToCart || activeProduct.is_available === false}
                   onClick={handleSave}

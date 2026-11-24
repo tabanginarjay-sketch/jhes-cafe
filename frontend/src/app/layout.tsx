@@ -6,6 +6,7 @@ import { CartProvider } from "@/context/CartContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { CartDrawer } from "@/components/CartDrawer";
 import { ProductCustomizerModal } from "@/components/common/ProductCustomizerModal";
+import { LoginRequiredModal } from "@/components/auth/LoginRequiredModal";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 
@@ -48,6 +49,7 @@ export default function RootLayout({
             </Suspense>
             <CartDrawer />
             <ProductCustomizerModal />
+            <LoginRequiredModal />
             <div className="flex-1 flex flex-col">{children}</div>
             <Footer />
           </CartProvider>

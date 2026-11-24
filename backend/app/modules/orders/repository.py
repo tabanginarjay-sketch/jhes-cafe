@@ -1,5 +1,6 @@
 """Orders and Order Items repositories backed by Airtable."""
 
+import hashlib
 import re
 import time
 from typing import Any, List, Optional
@@ -8,6 +9,10 @@ from app.core.base_repository import BaseAirtableRepository
 from app.core.config import settings
 from app.modules.catalog.repository import resolve_product_type
 from app.modules.orders.schemas import (
+    ALLOWED_DINING_OPTIONS,
+    ALLOWED_ORDER_STATUSES,
+    ALLOWED_PAYMENT_METHODS,
+    ALLOWED_PAYMENT_STATUSES,
     OrderCreate,
     OrderItemCreate,
     OrderItemResponse,
@@ -48,6 +53,24 @@ CANONICAL_PRICES: dict[str, float] = {
 }
 
 FOOD_TYPES = {"cake", "doughnut", "pastry"}
+DEMO_PROMO_CODE = "FIRSTSIP15"
+DEMO_PROMO_RATE = 0.15
+IDEMPOTENCY_TTL_SECONDS = 300.0
+
+_in_flight_idempotency_keys: set[str] = set()
+_recent_idempotency_orders: dict[str, tuple[str, float]] = {}
+
+
+def _prune_idempotency_cache() -> None:
+    now = time.time()
+    expired = [k for k, (_, exp) in _recent_idempotency_orders.items() if exp <= now]
+    for k in expired:
+        _recent_idempotency_orders.pop(k, None)
+
+
+def _build_idempotency_tag(owner: str, key: str) -> str:
+    digest = hashlib.sha256(f"{owner}:{key}".encode("utf-8")).hexdigest()[:12].upper()
+    return f"IDEM-{digest}"
 
 
 def _sanitize_phone(phone: Optional[str]) -> Optional[int]:
@@ -138,7 +161,11 @@ class OrderRepository(BaseAirtableRepository[OrderResponse, OrderCreate, OrderUp
         super().__init__()
         self.item_repo = OrderItemRepository(client=self.client)
 
-    async def create_order_with_items(self, order_data: OrderCreate) -> OrderResponse:
+    async def create_order_with_items(
+        self,
+        order_data: OrderCreate,
+        idempotency_key: Optional[str] = None,
+    ) -> OrderResponse:
         """Create an Order record and child OrderItems in Airtable with DB-verified pricing."""
         customer_name = (order_data.customer_name or "").strip()
         if not customer_name or len(customer_name) < 2:
@@ -147,145 +174,217 @@ class OrderRepository(BaseAirtableRepository[OrderResponse, OrderCreate, OrderUp
         if not order_data.items:
             raise HTTPException(status_code=400, detail="Order must contain at least one item.")
 
-        order_num = order_data.order_number
-        if not order_num or not order_num.startswith("JHE-"):
-            order_num = f"JHE-2026-{int(time.time() * 1000) % 90000 + 10000}"
+        payment_method = (order_data.payment_method or "gcash").strip().lower()
+        if payment_method not in ALLOWED_PAYMENT_METHODS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported payment method. Must be one of: {', '.join(sorted(ALLOWED_PAYMENT_METHODS))}.",
+            )
 
-        # Load live products from Airtable for DB prices and availability checks
-        live_products: dict[str, dict[str, Any]] = {}
-        try:
-            prod_records = await self.client.list_records(settings.AIRTABLE_TABLE_PRODUCTS)
-            for rec in prod_records:
-                f = rec.get("fields", {})
-                pname = str(f.get("name", "")).strip().lower()
-                if pname:
-                    live_products[pname] = f
-        except Exception:
-            pass
+        dining_option = (order_data.dining_option or "Dine-in").strip()
+        if dining_option not in ALLOWED_DINING_OPTIONS:
+            dining_option = "Dine-in"
 
-        verified_items: List[dict[str, Any]] = []
-        total_amount = 0.0
-        coffee_drinks = 0
-        oat_milk_drinks = 0
+        raw_notes = (order_data.special_notes or "").strip()
+        if len(raw_notes) > 200:
+            raise HTTPException(status_code=400, detail="Special instructions cannot exceed 200 characters.")
 
-        for item in order_data.items:
-            name_lower = item.product_name.strip().lower()
-            live_prod = live_products.get(name_lower)
-            if live_prod and not bool(live_prod.get("is_available", False)):
+        # Idempotency guard to prevent duplicate order submissions
+        _prune_idempotency_cache()
+        effective_idem_key = (idempotency_key or order_data.idempotency_key or "").strip()
+        acquired_tag: Optional[str] = None
+        if effective_idem_key:
+            owner_key = (order_data.customer_email or customer_name).lower()
+            idem_tag = _build_idempotency_tag(owner_key, effective_idem_key)
+            if idem_tag in _in_flight_idempotency_keys or idem_tag in _recent_idempotency_orders:
+                existing_ref = _recent_idempotency_orders.get(idem_tag, ("", 0.0))[0]
                 raise HTTPException(
-                    status_code=400,
-                    detail=f"'{item.product_name}' is currently unavailable.",
+                    status_code=409,
+                    detail=f"Duplicate order submission prevented{f' (Order #{existing_ref})' if existing_ref else ''}.",
                 )
+            _in_flight_idempotency_keys.add(idem_tag)
+            acquired_tag = idem_tag
 
-            p_type = resolve_product_type(
-                item.product_name,
-                live_prod.get("category_name") if live_prod else None,
-            )
-            is_food = p_type in FOOD_TYPES
-            db_price = float(live_prod["price"]) if live_prod and live_prod.get("price") is not None else None
-            server_unit_price = compute_server_item_price(item, db_base_price=db_price, is_food=is_food)
-            qty = max(1, item.quantity)
-            subtotal = round(server_unit_price * qty, 2)
-            total_amount += subtotal
+        try:
+            order_num = order_data.order_number
+            if not order_num or not (order_num.startswith("JHE-") or order_num.startswith("ORD-")):
+                order_num = f"JHE-2026-{int(time.time() * 1000) % 90000 + 10000}"
 
-            if p_type in ("coffee", "cold_brew"):
-                coffee_drinks += qty
-            if not is_food and "oat" in (item.milk_type or "").lower():
-                oat_milk_drinks += qty
-
-            # Only include columns that actually exist in Airtable OrderItems table,
-            # and strictly omit drink-only fields for food/bakery items.
-            item_payload: dict[str, Any] = {
-                "product_name": item.product_name,
-                "quantity": qty,
-                "unit_price": server_unit_price,
-                "subtotal": subtotal,
-            }
-            if not is_food:
-                if item.size:
-                    item_payload["size"] = item.size
-                if item.temperature:
-                    item_payload["temperature"] = "Iced" if p_type == "cold_brew" else item.temperature
-                if item.milk_type:
-                    item_payload["milk_type"] = item.milk_type
-                if item.sweetness is not None:
-                    item_payload["sweetness"] = item.sweetness
-
-            verified_items.append(item_payload)
-
-        total_amount = round(total_amount, 2)
-        numeric_phone = _sanitize_phone(order_data.customer_phone)
-
-        order_fields: dict[str, Any] = {
-            "order_number": order_num,
-            "customer_name": customer_name,
-            "customer_phone": numeric_phone,
-            "customer_email": order_data.customer_email,
-            "dining_option": order_data.dining_option or "Dine-in",
-            "status": "pending",
-            "total_amount": total_amount,
-            "payment_status": "pending",  # NEVER mark paid without confirmation
-            "payment_method": order_data.payment_method or "gcash",
-            "special_notes": order_data.special_notes,
-        }
-
-        created_order_record = await self.client.create_record(
-            self.table_name,
-            {k: v for k, v in order_fields.items() if v is not None},
-        )
-        order_id = created_order_record["id"]
-
-        created_items: List[OrderItemResponse] = []
-        for item_payload in verified_items:
-            item_payload["order_id"] = order_id
-            created_item = await self.item_repo.client.create_record(
-                self.item_repo.table_name,
-                item_payload,
-            )
-            created_items.append(self.item_repo._record_to_model(created_item))
-
-        # Smart inventory deduction (only deduct beans for coffee/cold brew and oat milk when chosen)
-        if coffee_drinks > 0 or oat_milk_drinks > 0:
+            # Load live products from Airtable for DB prices and availability checks
+            live_products: dict[str, dict[str, Any]] = {}
             try:
-                inv_records = await self.client.list_records("Inventory")
-                if coffee_drinks > 0:
-                    bean_rec = next(
-                        (
-                            r
-                            for r in inv_records
-                            if "bean" in str(r.get("fields", {}).get("item_name", "")).lower()
-                        ),
-                        None,
-                    )
-                    if bean_rec:
-                        curr = bean_rec.get("fields", {}).get("stock_quantity", 0)
-                        await self.client.update_record(
-                            "Inventory",
-                            bean_rec["id"],
-                            {"stock_quantity": max(0, curr - coffee_drinks)},
-                        )
-                if oat_milk_drinks > 0:
-                    oat_rec = next(
-                        (
-                            r
-                            for r in inv_records
-                            if "oat" in str(r.get("fields", {}).get("item_name", "")).lower()
-                        ),
-                        None,
-                    )
-                    if oat_rec:
-                        curr = oat_rec.get("fields", {}).get("stock_quantity", 0)
-                        await self.client.update_record(
-                            "Inventory",
-                            oat_rec["id"],
-                            {"stock_quantity": max(0, curr - oat_milk_drinks)},
-                        )
+                prod_records = await self.client.list_records(settings.AIRTABLE_TABLE_PRODUCTS)
+                for rec in prod_records:
+                    f = rec.get("fields", {})
+                    pname = str(f.get("name", "")).strip().lower()
+                    if pname:
+                        live_products[pname] = f
             except Exception:
                 pass
 
-        response = self._record_to_model(created_order_record)
-        response.items = created_items
-        return response
+            verified_items: List[dict[str, Any]] = []
+            subtotal_amount = 0.0
+            coffee_drinks = 0
+            oat_milk_drinks = 0
+
+            for item in order_data.items:
+                name_lower = item.product_name.strip().lower()
+                live_prod = live_products.get(name_lower)
+                if live_prod and not bool(live_prod.get("is_available", False)):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"'{item.product_name}' is currently unavailable.",
+                    )
+
+                p_type = resolve_product_type(
+                    item.product_name,
+                    live_prod.get("category_name") if live_prod else None,
+                )
+                is_food = p_type in FOOD_TYPES
+                db_price = float(live_prod["price"]) if live_prod and live_prod.get("price") is not None else None
+                server_unit_price = compute_server_item_price(item, db_base_price=db_price, is_food=is_food)
+                qty = max(1, min(20, item.quantity))
+                subtotal = round(server_unit_price * qty, 2)
+                subtotal_amount += subtotal
+
+                if p_type in ("coffee", "cold_brew"):
+                    coffee_drinks += qty
+                if not is_food and "oat" in (item.milk_type or "").lower():
+                    oat_milk_drinks += qty
+
+                # Strictly omit drink-only columns for food/bakery items
+                item_payload: dict[str, Any] = {
+                    "product_name": item.product_name,
+                    "quantity": qty,
+                    "unit_price": server_unit_price,
+                    "subtotal": subtotal,
+                }
+                if not is_food:
+                    item_payload["size"] = item.size or "Grande 16oz"
+                    item_payload["temperature"] = "Iced" if p_type == "cold_brew" else (item.temperature or "Hot")
+                    item_payload["milk_type"] = item.milk_type or "Whole Milk"
+                    item_payload["sweetness"] = item.sweetness if item.sweetness is not None else 50
+
+                verified_items.append(item_payload)
+
+            # Server-verified demo promo calculation
+            promo_clean = (order_data.promo_code or "").strip().upper()
+            discount_amount = (
+                round(subtotal_amount * DEMO_PROMO_RATE)
+                if promo_clean == DEMO_PROMO_CODE
+                else 0.0
+            )
+            total_amount = round(max(0.0, subtotal_amount - discount_amount), 2)
+            numeric_phone = _sanitize_phone(order_data.customer_phone)
+
+            note_parts: List[str] = []
+            if dining_option == "Dine-in":
+                dining_details = [
+                    f"Area: {order_data.seating_zone.strip()}" if order_data.seating_zone else None,
+                    f"Table: {order_data.table_number.strip()}" if order_data.table_number else None,
+                ]
+                dining_meta = ", ".join(p for p in dining_details if p)
+                if dining_meta:
+                    note_parts.append(dining_meta)
+            if raw_notes:
+                note_parts.append(raw_notes)
+            if discount_amount > 0:
+                note_parts.append(f"Promo applied: {DEMO_PROMO_CODE} (-PHP {discount_amount:.0f})")
+            formatted_notes = " | ".join(note_parts) if note_parts else None
+
+            order_fields: dict[str, Any] = {
+                "order_number": order_num,
+                "customer_name": customer_name,
+                "customer_phone": numeric_phone,
+                "customer_email": order_data.customer_email,
+                "dining_option": dining_option,
+                "status": "pending",
+                "total_amount": total_amount,
+                "payment_status": "pending",  # NEVER mark paid without confirmation
+                "payment_method": payment_method,
+                "special_notes": formatted_notes,
+            }
+
+            created_order_record = await self.client.create_record(
+                self.table_name,
+                {k: v for k, v in order_fields.items() if v is not None},
+            )
+            order_id = created_order_record["id"]
+
+            if acquired_tag:
+                _recent_idempotency_orders[acquired_tag] = (
+                    order_num,
+                    time.time() + IDEMPOTENCY_TTL_SECONDS,
+                )
+
+            created_items: List[OrderItemResponse] = []
+            for item_payload in verified_items:
+                item_payload["order_id"] = order_id
+                created_item = await self.item_repo.client.create_record(
+                    self.item_repo.table_name,
+                    item_payload,
+                )
+                created_items.append(self.item_repo._record_to_model(created_item))
+
+            # Smart inventory deduction
+            if coffee_drinks > 0 or oat_milk_drinks > 0:
+                try:
+                    inv_records = await self.client.list_records("Inventory")
+                    if coffee_drinks > 0:
+                        bean_rec = next(
+                            (
+                                r
+                                for r in inv_records
+                                if "bean" in str(r.get("fields", {}).get("item_name", "")).lower()
+                            ),
+                            None,
+                        )
+                        if bean_rec:
+                            curr = bean_rec.get("fields", {}).get("stock_quantity", 0)
+                            await self.client.update_record(
+                                "Inventory",
+                                bean_rec["id"],
+                                {"stock_quantity": max(0, curr - coffee_drinks)},
+                            )
+                    if oat_milk_drinks > 0:
+                        oat_rec = next(
+                            (
+                                r
+                                for r in inv_records
+                                if "oat" in str(r.get("fields", {}).get("item_name", "")).lower()
+                            ),
+                            None,
+                        )
+                        if oat_rec:
+                            curr = oat_rec.get("fields", {}).get("stock_quantity", 0)
+                            await self.client.update_record(
+                                "Inventory",
+                                oat_rec["id"],
+                                {"stock_quantity": max(0, curr - oat_milk_drinks)},
+                            )
+                except Exception:
+                    pass
+
+            response = self._record_to_model(created_order_record)
+            response.items = created_items
+            return response
+        finally:
+            if acquired_tag:
+                _in_flight_idempotency_keys.discard(acquired_tag)
+
+    async def update_validated_status(self, order_id: str, payload: OrderUpdateStatus) -> OrderResponse:
+        if payload.status and payload.status.lower().strip() not in ALLOWED_ORDER_STATUSES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid order_status. Allowed: {', '.join(sorted(ALLOWED_ORDER_STATUSES))}.",
+            )
+        if payload.payment_status and payload.payment_status.lower().strip() not in ALLOWED_PAYMENT_STATUSES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid payment_status. Allowed: {', '.join(sorted(ALLOWED_PAYMENT_STATUSES))}.",
+            )
+        await self.update(order_id, payload)
+        return await self.get_order_with_items(order_id)
 
     async def get_order_with_items(self, order_id: str) -> OrderResponse:
         """Fetch order record and eagerly fetch line items."""

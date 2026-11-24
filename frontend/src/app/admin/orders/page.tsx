@@ -73,6 +73,8 @@ export default function AdminOrdersPage() {
         return "bg-emerald-100 text-emerald-900 border-emerald-300";
       case "completed":
         return "bg-blue-100 text-blue-900 border-blue-300";
+      case "confirmed":
+        return "bg-sky-100 text-sky-900 border-sky-300";
       case "preparing":
         return "bg-amber-100 text-amber-900 border-amber-300";
       case "cancelled":
@@ -110,7 +112,7 @@ export default function AdminOrdersPage() {
 
       {/* Filter Tabs */}
       <div className="flex gap-2 overflow-x-auto pb-1 text-xs font-semibold">
-        {["all", "pending", "preparing", "ready", "completed", "cancelled"].map((tab) => (
+        {["all", "pending", "confirmed", "preparing", "ready", "completed", "cancelled"].map((tab) => (
           <button
             key={tab}
             type="button"
@@ -194,13 +196,23 @@ export default function AdminOrdersPage() {
                             <button
                               type="button"
                               disabled={isUpdating}
+                              onClick={() => void handleUpdateStatus(ord.id, "confirmed")}
+                              className="px-2.5 py-1 rounded-lg bg-sky-100 text-sky-900 hover:bg-sky-800 hover:text-white font-medium text-[11px] transition-all cursor-pointer"
+                            >
+                              Confirm
+                            </button>
+                          )}
+                          {(statusLower === "pending" || statusLower === "confirmed") && (
+                            <button
+                              type="button"
+                              disabled={isUpdating}
                               onClick={() => void handleUpdateStatus(ord.id, "preparing")}
                               className="px-2.5 py-1 rounded-lg bg-[#F5F0E7] text-[#173D2B] hover:bg-[#173D2B] hover:text-white font-medium text-[11px] transition-all cursor-pointer"
                             >
                               Prepare
                             </button>
                           )}
-                          {(statusLower === "pending" || statusLower === "preparing") && (
+                          {(statusLower === "pending" || statusLower === "confirmed" || statusLower === "preparing") && (
                             <button
                               type="button"
                               disabled={isUpdating}

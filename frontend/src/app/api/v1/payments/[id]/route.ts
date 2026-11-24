@@ -23,7 +23,7 @@ export async function PATCH(
     const { id } = await params;
     const body = await req.json();
     const nextStatus = String(body.status || "").toLowerCase().trim();
-    const allowed = ["pending", "completed", "failed", "refunded"];
+    const allowed = ["unpaid", "pending", "paid", "completed", "failed", "refunded"];
     if (!allowed.includes(nextStatus)) {
       return NextResponse.json(
         { detail: `Invalid payment status. Must be one of: ${allowed.join(", ")}.` },
@@ -32,24 +32,32 @@ export async function PATCH(
     }
 
     const existing: any = await airtableGet("Payments", id);
-    const fields: Record<string, unknown> = { status: nextStatus };
+    const storedPaymentStatus = nextStatus === "paid" ? "completed" : nextStatus;
+    const fields: Record<string, unknown> = { status: storedPaymentStatus };
     if (body.transaction_id !== undefined) {
       fields.transaction_id = String(body.transaction_id).trim();
-    } else if (nextStatus === "completed" && String(existing.transaction_id || "").startsWith("AWAITING-")) {
+    } else if (
+      storedPaymentStatus === "completed" &&
+      /^(AWAITING-|COUNTER-CASH-PENDING|DEMO-SIMULATED-PENDING)/.test(
+        String(existing.transaction_id || "")
+      )
+    ) {
       fields.transaction_id = `CONFIRMED-${Date.now()}`;
     }
 
     const updated: any = await airtableUpdate("Payments", id, fields);
 
-    // Sync linked Order record's payment_status
+    // Sync linked Order record's separated payment_status enum
     const orderPaymentStatus =
-      nextStatus === "completed"
+      storedPaymentStatus === "completed"
         ? "paid"
-        : nextStatus === "failed"
-          ? "failed"
-          : nextStatus === "refunded"
-            ? "refunded"
-            : "pending";
+        : storedPaymentStatus === "unpaid"
+          ? "unpaid"
+          : storedPaymentStatus === "failed"
+            ? "failed"
+            : storedPaymentStatus === "refunded"
+              ? "refunded"
+              : "pending";
 
     try {
       let targetOrderId: string | null =

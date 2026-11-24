@@ -60,7 +60,7 @@ export function HomeCustomizer() {
   const [milk, setMilk] = useState<"Whole Milk" | "Barista Oat Milk" | "Roasted Almond Milk">("Whole Milk");
   const [sweetness, setSweetness] = useState<number>(50);
   const [isAdded, setIsAdded] = useState(false);
-  const addButtonRef = useRef<HTMLButtonElement | null>(null);
+  const productImageRef = useRef<HTMLDivElement | null>(null);
 
   const { addItem } = useCart();
 
@@ -121,7 +121,7 @@ export function HomeCustomizer() {
   const handleAdd = () => {
     const slug = resolveCanonicalSlug(selectedBase.name);
     const consistentImage = getProductImage({ slug, name: selectedBase.name });
-    addItem(
+    const didAdd = addItem(
       {
         productId: slug,
         slug: slug,
@@ -137,10 +137,12 @@ export function HomeCustomizer() {
         customizationSummary: `${size} · ${isColdBrew ? "Iced" : temperature} · ${milk} · ${sweetness}% sweet`,
       },
       1,
-      addButtonRef.current
+      productImageRef.current
     );
-    setIsAdded(true);
-    setTimeout(() => setIsAdded(false), 1600);
+    if (didAdd) {
+      setIsAdded(true);
+      setTimeout(() => setIsAdded(false), 1600);
+    }
   };
 
   return (
@@ -376,7 +378,11 @@ export function HomeCustomizer() {
               </div>
 
               {/* Dynamic Coffee Picture Stage */}
-              <div className="relative w-full h-56 rounded-2xl overflow-hidden border border-[#E5DACB] bg-[#173D2B] shadow-inner group">
+              <div
+                ref={productImageRef}
+                data-product-hero-image="true"
+                className="relative w-full h-56 rounded-2xl overflow-hidden border border-[#E5DACB] bg-[#173D2B] shadow-inner group"
+              >
                 <img
                   key={`${selectedBase.name}-${temperature}`}
                   src={activeImage}
@@ -460,7 +466,6 @@ export function HomeCustomizer() {
                 </div>
 
                 <button
-                  ref={addButtonRef}
                   type="button"
                   onClick={handleAdd}
                   className={`inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-full text-xs font-bold tracking-wider uppercase transition-all duration-300 shadow-md hover:shadow-xl hover:scale-[1.02] active:scale-95 cursor-pointer ${isAdded

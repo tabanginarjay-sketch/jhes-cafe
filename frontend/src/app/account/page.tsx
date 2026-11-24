@@ -37,8 +37,8 @@ export default function AccountPage() {
         const data: OrderData[] = await res.json();
         const mine = data.filter(
           (o) =>
-            o.customer_email?.toLowerCase() === user.email.toLowerCase() ||
-            o.customer_name?.toLowerCase() === user.full_name.toLowerCase()
+            o.customer_email &&
+            o.customer_email.toLowerCase().trim() === user.email.toLowerCase().trim()
         );
         setOrders(mine);
       }
@@ -52,7 +52,10 @@ export default function AccountPage() {
   useEffect(() => {
     if (user) {
       void loadAccountOrders();
+    } else {
+      setOrders([]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   if (isLoading) {
@@ -121,6 +124,8 @@ export default function AccountPage() {
         return "bg-teal-100 text-teal-900 border-teal-300";
       case "preparing":
         return "bg-amber-100 text-amber-900 border-amber-300";
+      case "confirmed":
+        return "bg-sky-100 text-sky-900 border-sky-300";
       case "cancelled":
         return "bg-rose-100 text-rose-900 border-rose-300";
       default:

@@ -108,9 +108,43 @@ export async function PATCH(
       targetRecordId = matched[0].id;
     }
 
+    const ALLOWED_ORDER_STATUSES = new Set([
+      "pending",
+      "confirmed",
+      "preparing",
+      "ready",
+      "completed",
+      "cancelled",
+    ]);
+    const ALLOWED_PAYMENT_STATUSES = new Set([
+      "unpaid",
+      "pending",
+      "paid",
+      "failed",
+      "refunded",
+    ]);
+
     const fieldsToUpdate: Record<string, unknown> = {};
-    if (body.status) fieldsToUpdate.status = body.status;
-    if (body.payment_status) fieldsToUpdate.payment_status = body.payment_status;
+    if (body.status) {
+      const normalizedStatus = String(body.status).toLowerCase().trim();
+      if (!ALLOWED_ORDER_STATUSES.has(normalizedStatus)) {
+        return NextResponse.json(
+          { detail: `Invalid order_status. Allowed: ${Array.from(ALLOWED_ORDER_STATUSES).join(", ")}.` },
+          { status: 400 }
+        );
+      }
+      fieldsToUpdate.status = normalizedStatus;
+    }
+    if (body.payment_status) {
+      const normalizedPayStatus = String(body.payment_status).toLowerCase().trim();
+      if (!ALLOWED_PAYMENT_STATUSES.has(normalizedPayStatus)) {
+        return NextResponse.json(
+          { detail: `Invalid payment_status. Allowed: ${Array.from(ALLOWED_PAYMENT_STATUSES).join(", ")}.` },
+          { status: 400 }
+        );
+      }
+      fieldsToUpdate.payment_status = normalizedPayStatus;
+    }
     if (body.special_notes !== undefined) fieldsToUpdate.special_notes = body.special_notes;
 
     const updated = await airtableUpdate("Orders", targetRecordId, fieldsToUpdate);

@@ -9,8 +9,8 @@ class PaymentBase(BaseModel):
     order_id: str = Field(..., description="Associated Order record ID")
     order_number: str = Field(..., description="Human order number e.g. ORD-1024")
     amount: float = Field(..., gt=0, description="Payment amount in PHP")
-    provider: str = Field(default="gcash", description="Provider: gcash, maya, stripe, cash")
-    status: str = Field(default="completed", description="Status: pending, completed, failed, refunded")
+    provider: str = Field(default="gcash", description="Provider: gcash, maya, card, cash")
+    status: str = Field(default="pending", description="Status: unpaid, pending, paid, completed, failed, refunded")
     transaction_id: Optional[str] = Field(default=None, description="External gateway transaction ID")
 
 
