@@ -89,9 +89,9 @@ function calculateItemDelta(item: any, isFood: boolean): number {
     if (addOns.includes("caramel crunch") || addOns.includes("caramel-crunch")) delta += 35;
   } else {
     if (addOns.includes("berry") || addOns.includes("compote")) delta += 35;
-    if (addOns.includes("cacao-dip") || addOns.includes("chocolate dip")) delta += 35;
+    if (addOns.includes("dark-cacao-dip") || addOns.includes("ganache")) delta += 25;
+    else if (addOns.includes("cacao-dip") || addOns.includes("chocolate dip")) delta += 35;
     else if (addOns.includes("cacao-drizzle") || addOns.includes("cacao drizzle")) delta += 30;
-    else if (addOns.includes("dark-cacao-dip") || addOns.includes("ganache")) delta += 25;
     if (addOns.includes("butter") || addOns.includes("french-butter")) delta += 25;
     if (addOns.includes("almonds") || addOns.includes("toasted-almonds")) delta += 25;
     if (addOns.includes("honey") || addOns.includes("wild-honey")) delta += 30;
@@ -488,12 +488,16 @@ export async function POST(req: NextRequest) {
         name: pName,
         category_name: liveProd?.category_name || item.category,
       });
+      const isAffogato = pName.toLowerCase().includes("affogato");
       const isFood = ["cake", "doughnut", "pastry"].includes(productType) || Boolean(item.is_bakery);
       const qty = Math.max(1, Math.min(20, Math.floor(Number(item.quantity) || 1)));
 
       const dbBasePrice =
         liveProd?.price !== undefined ? Number(liveProd.price) : Number(item.unit_price || item.price) || 200;
-      const optionDelta = calculateItemDelta(item, isFood);
+      const optionDelta = calculateItemDelta(
+        isAffogato ? { ...item, size: undefined, milk: undefined, milk_type: undefined } : item,
+        isFood
+      );
       const verifiedUnitPrice = Math.max(50, dbBasePrice + optionDelta);
       const verifiedSubtotal = verifiedUnitPrice * qty;
 
@@ -503,7 +507,7 @@ export async function POST(req: NextRequest) {
         coffeeDrinkCount += qty;
       }
       const milkLower = String(item.milk_type || item.milk || "").toLowerCase();
-      if (!isFood && milkLower.includes("oat")) {
+      if (!isFood && !isAffogato && milkLower.includes("oat")) {
         oatMilkCount += qty;
       }
       const nameAndAddons = `${pName} ${item.add_ons || ""}`.toLowerCase();
@@ -514,12 +518,12 @@ export async function POST(req: NextRequest) {
       verifiedItems.push({
         product_name: pName,
         product_type: productType,
-        is_food: isFood,
+        is_food: isFood || isAffogato,
         quantity: qty,
         unit_price: verifiedUnitPrice,
         subtotal: verifiedSubtotal,
-        // STRICTLY omit drink fields for food/bakery items
-        ...(isFood
+        // STRICTLY omit drink fields for food/bakery items and espresso-over-gelato affogato
+        ...(isFood || isAffogato
           ? {}
           : {
               size: item.size || "Grande 16oz",

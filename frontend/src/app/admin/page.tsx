@@ -13,12 +13,14 @@ import {
   RefreshCw,
   Coffee,
   CheckCircle2,
+  Truck,
 } from "lucide-react";
 
 export default function AdminDashboardPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [inventory, setInventory] = useState<any[]>([]);
+  const [deliveries, setDeliveries] = useState<any[]>([]);
   const [paymentStats, setPaymentStats] = useState<{ total_collected: number; pending_amount: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,11 +29,12 @@ export default function AdminDashboardPage() {
     try {
       setLoading(true);
       setError(null);
-      const [ordRes, prodRes, invRes, payRes] = await Promise.all([
+      const [ordRes, prodRes, invRes, payRes, dlvRes] = await Promise.all([
         fetch(`${API_BASE_URL}/orders`, { credentials: "include", cache: "no-store" }),
         fetch(`${API_BASE_URL}/catalog/products`, { credentials: "include", cache: "no-store" }),
         fetch(`${API_BASE_URL}/inventory`, { credentials: "include", cache: "no-store" }),
         fetch(`${API_BASE_URL}/payments?include_meta=true`, { credentials: "include", cache: "no-store" }),
+        fetch(`${API_BASE_URL}/deliveries`, { credentials: "include", cache: "no-store" }),
       ]);
 
       if (ordRes.ok) setOrders(await ordRes.json());
@@ -40,6 +43,10 @@ export default function AdminDashboardPage() {
       if (payRes.ok) {
         const payData = await payRes.json();
         if (payData?.stats) setPaymentStats(payData.stats);
+      }
+      if (dlvRes.ok) {
+        const dlvData = await dlvRes.json();
+        setDeliveries(Array.isArray(dlvData?.deliveries) ? dlvData.deliveries : []);
       }
 
       if (!ordRes.ok || !prodRes.ok || !invRes.ok) {
@@ -68,11 +75,18 @@ export default function AdminDashboardPage() {
     (i) => (Number(i.stock_quantity) || 0) <= (Number(i.reorder_threshold) || 5)
   );
 
+  const activeDeliveries = deliveries.filter(
+    (d) => !["DELIVERED", "CANCELLED", "RETURNED"].includes(String(d.delivery_status || "").toUpperCase())
+  );
+  const pendingAssignmentCount = deliveries.filter(
+    (d) => String(d.delivery_status || "").toUpperCase() === "PENDING_ASSIGNMENT"
+  ).length;
+
   const stats = [
     {
       label: "Total Recorded Orders",
       val: `${orderCount}`,
-      delta: `${orders.filter((o) => ["pending", "preparing", "ready"].includes(String(o.status || "").toLowerCase())).length} active in queue`,
+      delta: `${orders.filter((o) => ["pending", "confirmed", "preparing", "ready"].includes(String(o.status || "").toLowerCase())).length} active in queue`,
       icon: ShoppingBag,
     },
     {
@@ -148,6 +162,30 @@ export default function AdminDashboardPage() {
             </div>
           );
         })}
+      </div>
+
+      {/* Delivery Operations Quick Strip */}
+      <div className="p-5 rounded-3xl border border-[#E5DACB] bg-white shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-[#173D2B] text-[#C9AE8B] flex items-center justify-center shrink-0">
+            <Truck className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="font-serif text-base font-bold text-[#173D2B]">Delivery Dispatch &amp; Zones</h3>
+            <p className="text-xs text-[#573B2C]">
+              {loading
+                ? "Syncing delivery dispatches..."
+                : `${deliveries.length} total deliveries · ${activeDeliveries.length} active · ${pendingAssignmentCount} awaiting driver assignment`}
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/admin/deliveries"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white text-xs font-semibold transition-all self-start sm:self-auto"
+        >
+          <span>Manage Deliveries &amp; Zones</span>
+          <ArrowUpRight className="w-3.5 h-3.5 text-[#C9AE8B]" />
+        </Link>
       </div>
 
       {/* Live Queue & Stock Warnings */}

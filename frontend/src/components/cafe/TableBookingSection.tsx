@@ -174,6 +174,11 @@ export function TableBookingSection({
               <p className="text-sm text-[#573B2C]">
                 Your table is confirmed for <strong>{confirmedReservation.customer_name || user?.full_name}</strong>. We look forward to welcoming you to Jhe&apos;s Cafe&apos;.
               </p>
+              {confirmedReservation.storage_mode === "demo_memory" && (
+                <p className="inline-block px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-[11px] font-medium text-amber-900">
+                  Portfolio demo booking · Stored in temporary session memory (Airtable Reservations table not provisioned).
+                </p>
+              )}
             </div>
 
             <div className="p-6 rounded-2xl bg-[#F5F0E7] border border-[#E5DACB] text-left text-xs space-y-3 max-w-md mx-auto">
@@ -367,7 +372,7 @@ export function TableBookingSection({
                   <div>
                     <strong className="block font-semibold">Account Required to Book</strong>
                     <span className="text-[11px] leading-relaxed">
-                      Bago makapag-book ng table, kailangan munang mag-sign in o mag-create ng account sa Jhe&apos;s Cafe&apos;.
+                      Sign in or create a Jhe&apos;s Cafe&apos; member account before booking a table.
                     </span>
                   </div>
                 </div>

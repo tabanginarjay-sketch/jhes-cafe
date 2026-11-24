@@ -63,16 +63,20 @@ export default function AdminReportsPage() {
   const totalCount = validOrders.length;
   const avgTicket = totalCount > 0 ? Math.round((totalRevenue / totalCount) * 100) / 100 : 0;
 
-  // Real Dining distribution
+  // Real Dining distribution (Dine-in, Takeaway, Delivery)
   const dineInCount = validOrders.filter((o) =>
     String(o.dining_option || "").toLowerCase().includes("dine")
   ).length;
   const takeawayCount = validOrders.filter((o) =>
     String(o.dining_option || "").toLowerCase().includes("take")
   ).length;
-  const diningDenom = dineInCount + takeawayCount;
+  const deliveryCount = validOrders.filter((o) =>
+    String(o.dining_option || "").toLowerCase().includes("deliver")
+  ).length;
+  const diningDenom = dineInCount + takeawayCount + deliveryCount;
   const dineInPct = diningDenom > 0 ? Math.round((dineInCount / diningDenom) * 100) : 0;
-  const takeawayPct = diningDenom > 0 ? 100 - dineInPct : 0;
+  const takeawayPct = diningDenom > 0 ? Math.round((takeawayCount / diningDenom) * 100) : 0;
+  const deliveryPct = diningDenom > 0 ? Math.max(0, 100 - dineInPct - takeawayPct) : 0;
 
   // Real Product Sales Aggregation from Airtable OrderItems
   const productRanking = useMemo(() => {
@@ -207,7 +211,7 @@ export default function AdminReportsPage() {
         <div>
           <h3 className="font-serif text-xl font-bold text-[#173D2B]">Dining Channel Distribution</h3>
           <p className="text-xs text-[#573B2C] mt-1">
-            Actual split of Dine-in vs Takeaway orders in Airtable.
+            Actual split of Dine-In, Takeaway, and Delivery orders in Airtable.
           </p>
         </div>
 
@@ -224,11 +228,21 @@ export default function AdminReportsPage() {
 
           <div className="space-y-1.5">
             <div className="flex justify-between text-xs font-semibold text-[#173D2B]">
-              <span>Takeaway ({takeawayCount} orders)</span>
+              <span>Takeaway / Counter Pickup ({takeawayCount} orders)</span>
               <span>{takeawayPct}%</span>
             </div>
             <div className="h-3 rounded-full bg-[#F5F0E7] overflow-hidden">
               <div className="h-full bg-[#C9AE8B] rounded-full transition-all" style={{ width: `${takeawayPct}%` }} />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex justify-between text-xs font-semibold text-[#173D2B]">
+              <span>Delivery ({deliveryCount} orders)</span>
+              <span>{deliveryPct}%</span>
+            </div>
+            <div className="h-3 rounded-full bg-[#F5F0E7] overflow-hidden">
+              <div className="h-full bg-[#315640] rounded-full transition-all" style={{ width: `${deliveryPct}%` }} />
             </div>
           </div>
         </div>

@@ -240,13 +240,16 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         .filter(Boolean)
         .join(", ");
       summaryParts = [
-        size,
-        temperature,
-        milk,
-        `${sweetness}% sweet`,
+        rules.allowsSize ? size : "",
+        rules.allowsTemperature || rules.defaultTemperature ? temperature : "",
+        rules.allowsMilk ? milk : "",
+        rules.allowsSweetness ? `${sweetness}% sweet` : "",
         shotLabel,
         toppingsText,
       ].filter(Boolean);
+      if (summaryParts.length === 0) {
+        summaryParts = [rules.categoryLabel];
+      }
     }
 
     const summary = summaryParts.join(" · ");

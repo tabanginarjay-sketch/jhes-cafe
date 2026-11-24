@@ -20,8 +20,34 @@ export async function GET(req: NextRequest) {
 
   try {
     const records = await airtableList("Users", undefined, true);
-    // Strip any password_hash before returning
-    const safeRecords = records.map(({ password_hash: _ph, ...rest }: any) => rest);
+    // Deduplicate customer directory by normalized email (preferring canonical record with loyalty points) without deleting Airtable records
+    const byEmail = new Map<string, any>();
+    const noEmailRows: any[] = [];
+
+    for (const raw of records) {
+      const { password_hash: _ph, ...rest } = raw as any;
+      const emailKey = String(rest.email || "").toLowerCase().trim();
+      if (!emailKey) {
+        noEmailRows.push(rest);
+        continue;
+      }
+      const existing = byEmail.get(emailKey);
+      if (!existing) {
+        byEmail.set(emailKey, rest);
+      } else {
+        const prevPts = Number(existing.loyalty_points ?? -1);
+        const nextPts = Number(rest.loyalty_points ?? -1);
+        const preferNext =
+          nextPts > prevPts ||
+          (nextPts === prevPts &&
+            String(rest.created_at || "").localeCompare(String(existing.created_at || "")) < 0);
+        if (preferNext) {
+          byEmail.set(emailKey, rest);
+        }
+      }
+    }
+
+    const safeRecords = [...Array.from(byEmail.values()), ...noEmailRows];
     return NextResponse.json(safeRecords, {
       headers: { "Cache-Control": "no-store" },
     });
@@ -34,9 +60,16 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST /api/v1/users — Public customer creation (strictly enforces role = "customer").
+ * POST /api/v1/users — Administrator only (customer self-signup uses /api/v1/auth/register or OAuth).
  */
 export async function POST(req: NextRequest) {
+  const admin = getAuthenticatedAdmin(req);
+  if (!admin) {
+    return NextResponse.json(
+      { detail: "Administrator authentication required. Customers should sign up via /api/v1/auth/register." },
+      { status: 401 }
+    );
+  }
   try {
     const body = await req.json();
     const cleanEmail = String(body.email || "").toLowerCase().trim();

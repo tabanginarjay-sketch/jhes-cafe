@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { airtableGet, airtableUpdate, airtableList, airtableDelete } from "@/lib/airtable";
 import { escapeFormulaString, getAuthenticatedAdmin, getAuthenticatedUser } from "@/lib/serverAuth";
 import { isAuthCredentialRecord, isDeliverySystemRecord, isLoyaltyRecord } from "@/lib/paymentLedger";
+import { getDeliveryByOrderIdOrNumber } from "@/lib/deliveryStore";
 
 export async function GET(
   req: NextRequest,
@@ -56,7 +57,26 @@ export async function GET(
       items = [];
     }
 
-    // Privacy: mask email/phone for unauthenticated public tracking queries
+    // Normalize status & payment_status (trim legacy newlines and normalize COD pending)
+    const normalizedStatus = order.status ? String(order.status).trim() : "pending";
+    let normalizedPayStatus = order.payment_status ? String(order.payment_status).trim() : "pending";
+    if (
+      String(order.payment_method || "").toLowerCase().trim() === "cod" &&
+      normalizedPayStatus.toLowerCase() === "pending"
+    ) {
+      normalizedPayStatus = "cod_pending";
+    }
+
+    // Attach linked delivery tracking for Delivery orders
+    let linkedDelivery: any = null;
+    if (String(order.dining_option || "").toLowerCase().trim() === "delivery") {
+      linkedDelivery = await getDeliveryByOrderIdOrNumber(
+        String(order.id),
+        order.order_number ? String(order.order_number) : null
+      ).catch(() => null);
+    }
+
+    // Privacy: mask personal identity, address, and private delivery instructions for unauthenticated lookups
     const admin = getAuthenticatedAdmin(req);
     const user = getAuthenticatedUser(req);
     const isOwner =
@@ -67,17 +87,42 @@ export async function GET(
           user.email.toLowerCase() === String(order.customer_email).toLowerCase()
       );
 
+    const safeDelivery = linkedDelivery
+      ? isOwner
+        ? linkedDelivery
+        : {
+            id: linkedDelivery.id,
+            delivery_ref: linkedDelivery.delivery_ref,
+            delivery_status: linkedDelivery.delivery_status,
+            estimated_delivery_time: linkedDelivery.estimated_delivery_time,
+            zone_label: linkedDelivery.zone_label,
+            delivery_fee: linkedDelivery.delivery_fee,
+            delivered_at: linkedDelivery.delivered_at,
+          }
+      : null;
+
     const responseOrder = isOwner
-      ? order
+      ? {
+          ...order,
+          status: normalizedStatus,
+          payment_status: normalizedPayStatus,
+          ...(safeDelivery ? { delivery: safeDelivery, delivery_fee: safeDelivery.delivery_fee } : {}),
+        }
       : {
           ...order,
+          status: normalizedStatus,
+          payment_status: normalizedPayStatus,
+          customer_name: "Verified Member",
           customer_email: undefined,
           customer_phone: undefined,
+          special_notes: undefined,
+          ...(safeDelivery ? { delivery: safeDelivery, delivery_fee: safeDelivery.delivery_fee } : {}),
         };
 
     return NextResponse.json(
       {
         ...responseOrder,
+        is_owner: isOwner,
         items,
       },
       { headers: { "Cache-Control": "no-store" } }
@@ -127,6 +172,7 @@ export async function PATCH(
     const ALLOWED_PAYMENT_STATUSES = new Set([
       "unpaid",
       "pending",
+      "cod_pending",
       "paid",
       "failed",
       "refunded",

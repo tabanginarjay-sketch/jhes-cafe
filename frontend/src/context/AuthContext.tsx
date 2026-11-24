@@ -3,9 +3,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import {
   UserData,
-  registerCustomer,
-  fetchUserByEmail,
-  bindSocialAccountApi,
   authWithGoogle,
   authWithGoogleCode,
   authWithFacebook,
@@ -13,7 +10,6 @@ import {
   authLogin,
   authGetMe,
   authLogout,
-  AuthSessionResponse,
 } from "@/lib/api";
 
 interface AuthContextType {
@@ -33,14 +29,6 @@ interface AuthContextType {
     phone?: string;
   }) => Promise<UserData>;
   loginWithEmail: (payload: { email: string; password: string }) => Promise<UserData>;
-  register: (payload: { full_name: string; email: string; phone?: string }) => Promise<UserData>;
-  login: (email: string) => Promise<UserData>;
-  bindSocialAccount: (
-    provider: "google" | "apple",
-    email: string,
-    name: string,
-    avatarUrl?: string
-  ) => Promise<UserData>;
   logout: () => Promise<void>;
   updateUserLocally: (updated: Partial<UserData>) => void;
 }
@@ -228,121 +216,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (payload: {
-    full_name: string;
-    email: string;
-    phone?: string;
-  }): Promise<UserData> => {
-    setIsLoading(true);
-    const cleanEmail = payload.email.trim().toLowerCase();
-    try {
-      let created: UserData;
-      try {
-        created = await registerCustomer({
-          ...payload,
-          email: cleanEmail,
-        });
-      } catch {
-        created = {
-          id: `cust-${Date.now()}`,
-          full_name: payload.full_name,
-          email: cleanEmail,
-          phone: payload.phone,
-          role: "customer",
-          loyalty_points: 25,
-        };
-      }
-      setUser(created);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(created));
-      localStorage.setItem("jhes_cafe_last_device_email", cleanEmail);
-      return created;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const login = async (email: string): Promise<UserData> => {
-    setIsLoading(true);
-    const cleanEmail = email.trim().toLowerCase();
-    try {
-      const found = await fetchUserByEmail(cleanEmail);
-      if (found) {
-        setUser(found);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(found));
-        localStorage.setItem("jhes_cafe_last_device_email", cleanEmail);
-        return found;
-      }
-
-      const usernamePart = cleanEmail.split("@")[0] || "Valued Customer";
-      const derivedName =
-        usernamePart
-          .replace(/[._-]/g, " ")
-          .split(" ")
-          .filter(Boolean)
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(" ") || "Valued Customer";
-
-      let created: UserData;
-      try {
-        created = await registerCustomer({
-          full_name: derivedName,
-          email: cleanEmail,
-        });
-      } catch {
-        created = {
-          id: `cust-${Date.now()}`,
-          full_name: derivedName,
-          email: cleanEmail,
-          role: "customer",
-          loyalty_points: 25,
-        };
-      }
-
-      setUser(created);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(created));
-      localStorage.setItem("jhes_cafe_last_device_email", cleanEmail);
-      return created;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const bindSocialAccount = async (
-    provider: "google" | "apple",
-    email: string,
-    name: string,
-    avatarUrl?: string
-  ): Promise<UserData> => {
-    setIsLoading(true);
-    const cleanEmail = email.trim().toLowerCase();
-    try {
-      let bound: UserData;
-      try {
-        bound = await bindSocialAccountApi({
-          provider,
-          email: cleanEmail,
-          full_name: name,
-          avatar_url: avatarUrl,
-        });
-      } catch {
-        bound = {
-          id: `social-${Date.now()}`,
-          full_name: name,
-          email: cleanEmail,
-          role: "customer",
-          loyalty_points: 50,
-          auth_provider: provider,
-        };
-      }
-      setUser(bound);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(bound));
-      localStorage.setItem("jhes_cafe_last_device_email", cleanEmail);
-      return bound;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const logout = async () => {
     try {
       await authLogout();
@@ -379,9 +252,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loginWithFacebook,
         registerWithEmail,
         loginWithEmail,
-        register,
-        login,
-        bindSocialAccount,
         logout,
         updateUserLocally,
       }}

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight, Flame, HeartHandshake, ShieldCheck } from "lucide-react";
 
-export function OurStoryTeaser() {
+export function OurStoryTeaser({ hideStoryLink = false }: { hideStoryLink?: boolean } = {}) {
   return (
     <section className="py-20 lg:py-28 bg-[#FFFCF7] overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -79,15 +79,17 @@ export function OurStoryTeaser() {
               </div>
             </div>
 
-            <div className="pt-4">
-              <Link
-                href="/our-story"
-                className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#173D2B] hover:text-[#315640] border-b-2 border-[#173D2B] pb-1 transition-colors"
-              >
-                <span>Read Our Full Story</span>
-                <ArrowRight className="w-4 h-4 text-[#C9AE8B]" />
-              </Link>
-            </div>
+            {!hideStoryLink && (
+              <div className="pt-4">
+                <Link
+                  href="/our-story"
+                  className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#173D2B] hover:text-[#315640] border-b-2 border-[#173D2B] pb-1 transition-colors"
+                >
+                  <span>Read Our Full Story</span>
+                  <ArrowRight className="w-4 h-4 text-[#C9AE8B]" />
+                </Link>
+              </div>
+            )}
           </div>
 
         </div>

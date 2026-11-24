@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { airtableList, airtableCreate } from "@/lib/airtable";
+import { getAuthenticatedAdmin, getAuthenticatedUser } from "@/lib/serverAuth";
 
 interface ReservationRecord {
   id: string;
@@ -49,14 +50,44 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    return NextResponse.json(filtered, {
+    const admin = getAuthenticatedAdmin(req);
+    const user = getAuthenticatedUser(req);
+
+    // Protect customer PII: guests receive only slot availability; customers see details only for their own bookings
+    const sanitized = filtered.map((r) => {
+      const isOwn =
+        Boolean(admin) ||
+        Boolean(user?.email && r.customer_email && String(r.customer_email).toLowerCase() === user.email.toLowerCase());
+      if (isOwn) return r;
+      return {
+        id: r.id,
+        date: r.date,
+        time_slot: r.time_slot,
+        zone: r.zone,
+        status: r.status || "confirmed",
+      };
+    });
+
+    return NextResponse.json(sanitized, {
       headers: {
         "Cache-Control": "no-store",
         "X-Storage-Mode": storageMode,
       },
     });
   } catch {
-    return NextResponse.json(inMemoryReservations, {
+    const admin = getAuthenticatedAdmin(req);
+    const sanitizedMem = inMemoryReservations.map((r) =>
+      admin
+        ? r
+        : {
+            id: r.id,
+            date: r.date,
+            time_slot: r.time_slot,
+            zone: r.zone,
+            status: r.status || "confirmed",
+          }
+    );
+    return NextResponse.json(sanitizedMem, {
       headers: {
         "Cache-Control": "no-store",
         "X-Storage-Mode": "demo_memory",
@@ -66,6 +97,15 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const admin = getAuthenticatedAdmin(req);
+  const user = getAuthenticatedUser(req);
+  if (!user && !admin) {
+    return NextResponse.json(
+      { detail: "Authentication required to book a table. Please sign in first." },
+      { status: 401 }
+    );
+  }
+
   try {
     const body = await req.json();
     const {
@@ -73,13 +113,15 @@ export async function POST(req: NextRequest) {
       time_slot,
       zone,
       guests,
-      customer_name,
-      customer_email,
       customer_phone,
       special_requests,
     } = body;
 
-    if (!date || !time_slot || !zone || !customer_name || !customer_email) {
+    // Bind reservation identity strictly to the server-verified session for customer requests
+    const verifiedName = !admin && user ? user.name || String(body.customer_name || "").trim() : String(body.customer_name || admin?.name || "").trim();
+    const verifiedEmail = !admin && user ? user.email.toLowerCase().trim() : String(body.customer_email || admin?.email || "").toLowerCase().trim();
+
+    if (!date || !time_slot || !zone || !verifiedName || !verifiedEmail) {
       return NextResponse.json(
         { detail: "Missing required booking details (date, time slot, zone, name, email)." },
         { status: 400 }
@@ -132,8 +174,8 @@ export async function POST(req: NextRequest) {
       time_slot,
       zone,
       guests: Number(guests) || 2,
-      customer_name: String(customer_name).trim(),
-      customer_email: String(customer_email).trim().toLowerCase(),
+      customer_name: verifiedName,
+      customer_email: verifiedEmail,
       customer_phone: customer_phone ? String(customer_phone).trim() : undefined,
       special_requests: special_requests ? String(special_requests).trim() : undefined,
       status: "confirmed",

@@ -23,8 +23,8 @@ const ITEMS: AnnouncementItem[] = [
   {
     id: "ordering",
     icon: "bag",
-    text: "Online Dine-In & Takeaway ordering with real-time kitchen tracking",
-    badge: "Live Order Status",
+    text: "Dine-In, Takeaway & Delivery (configured zones) with order status tracking",
+    badge: "Order Tracking",
   },
   {
     id: "roast",

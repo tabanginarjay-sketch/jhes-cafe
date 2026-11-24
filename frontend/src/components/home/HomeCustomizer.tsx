@@ -95,9 +95,9 @@ export function HomeCustomizer() {
         const res = await fetch(`${API_BASE_URL}/catalog/products`, { cache: "no-store" });
         const raw = res.ok ? await res.json() : [];
         if (!active) return;
-        const merged = dedupeAndMergeCatalog(Array.isArray(raw) ? raw : []).filter(
-          (item) => item.is_available !== false
-        );
+        const merged = dedupeAndMergeCatalog(Array.isArray(raw) ? raw : [], {
+          includeMissingCanonical: false,
+        }).filter((item) => item.is_available !== false);
         setCatalog(merged);
         setSelectedProduct((curr) => {
           if (curr) {

@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Search, AlertCircle } from "lucide-react";
+import { Search, AlertCircle, Truck, ArrowRight } from "lucide-react";
 import { API_BASE_URL, type OrderData } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { getProductImage } from "@/lib/productRegistry";
+import { CORE_DELIVERY_TIMELINE, formatDeliveryStatusLabel } from "@/lib/deliveryTypes";
 
 function TrackOrderContent() {
   const searchParams = useSearchParams();
@@ -212,6 +214,66 @@ function TrackOrderContent() {
               <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs font-semibold text-center">
                 This order has been cancelled.
               </div>
+            ) : String(order.dining_option || "").toLowerCase() === "delivery" && order.delivery ? (
+              <div className="space-y-4 pt-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <span className="inline-flex items-center gap-1.5 font-semibold text-[#173D2B]">
+                    <Truck className="w-4 h-4 text-[#315640]" />
+                    <span>Delivery Status: {formatDeliveryStatusLabel(order.delivery.delivery_status)}</span>
+                  </span>
+                  {order.delivery.estimated_delivery_time && (
+                    <span className="font-mono text-[11px] text-[#573B2C]">
+                      ETA: {order.delivery.estimated_delivery_time}
+                    </span>
+                  )}
+                </div>
+
+                {["CANCELLED", "FAILED_DELIVERY", "RETURNED"].includes(order.delivery.delivery_status) ? (
+                  <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs font-medium">
+                    Delivery status: <strong>{formatDeliveryStatusLabel(order.delivery.delivery_status)}</strong>.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {CORE_DELIVERY_TIMELINE.map((stage, idx) => {
+                      const activeIdx = CORE_DELIVERY_TIMELINE.indexOf(order.delivery.delivery_status);
+                      const active = activeIdx >= 0 && idx <= activeIdx;
+                      const isCurrent = idx === activeIdx;
+                      return (
+                        <div key={stage} className="space-y-1.5 text-center">
+                          <div
+                            className={`h-2.5 rounded-full transition-all ${
+                              active ? "bg-[#173D2B]" : "bg-[#E5DACB]"
+                            } ${isCurrent ? "ring-2 ring-[#C9AE8B] ring-offset-2" : ""}`}
+                          />
+                          <p
+                            className={`text-[10px] font-bold leading-tight ${
+                              active ? "text-[#173D2B]" : "text-[#573B2C]/40"
+                            }`}
+                          >
+                            {formatDeliveryStatusLabel(stage)}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-[11px] text-[#573B2C] bg-[#F5F0E7]/70 border border-[#E5DACB] rounded-2xl p-3">
+                  <span>
+                    {order.is_owner
+                      ? "View full driver details, handoff code, and delivery messages in My Orders."
+                      : "Sign in as the order owner in My Orders to view driver contact, handoff code, and address details."}
+                  </span>
+                  <Link
+                    href="/my-orders"
+                    prefetch={false}
+                    className="inline-flex items-center gap-1 font-semibold text-[#173D2B] hover:underline shrink-0"
+                  >
+                    <span>Open My Orders</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              </div>
             ) : (
               <div className="space-y-4 pt-2">
                 <div className="grid grid-cols-4 gap-2">
@@ -296,7 +358,9 @@ function TrackOrderContent() {
                       order.payment_status === "paid" ? "text-emerald-800" : "text-amber-800"
                     }`}
                   >
-                    {order.payment_status || "pending"}
+                    {order.payment_status === "cod_pending"
+                      ? "COD Pending"
+                      : order.payment_status || "pending"}
                   </strong>
                 </span>
               </div>

@@ -155,6 +155,20 @@ export function getProductType(product: {
     return "cake";
   }
 
+  // Pastry check (MUST run BEFORE non_coffee so "Chocolate Croissant" or "Matcha Croissant" never gets drink options!)
+  if (
+    name.includes("croissant") ||
+    name.includes("bread") ||
+    name.includes("pastry") ||
+    name.includes("muffin") ||
+    name.includes("scone") ||
+    name.includes("cookie") ||
+    category.includes("pastr") ||
+    category.includes("bake")
+  ) {
+    return "pastry";
+  }
+
   // Cold Brew check (Cold brews must NEVER allow Hot steamed)
   if (name.includes("cold brew") || name.includes("coldbrew") || category.includes("cold brew")) {
     return "cold_brew";
@@ -163,17 +177,6 @@ export function getProductType(product: {
   // Non-coffee check (Matcha, Chocolate, Tea do not take espresso shots)
   if (name.includes("matcha") || name.includes("chocolate") || name.includes("tea") || category.includes("tea")) {
     return "non_coffee";
-  }
-
-  // Pastry check
-  if (
-    name.includes("croissant") ||
-    name.includes("bread") ||
-    name.includes("pastry") ||
-    category.includes("pastr") ||
-    category.includes("bake")
-  ) {
-    return "pastry";
   }
 
   // Default to espresso coffee
@@ -192,9 +195,29 @@ export function getProductCustomizationRules(product: {
   const productType = getProductType(product);
   const nameLower = (product.name || "").toLowerCase();
   const isSignatureIced = nameLower.includes("iced") || nameLower.includes("shaken");
+  const isAffogato = nameLower.includes("affogato");
 
   switch (productType) {
     case "coffee":
+      if (isAffogato) {
+        return {
+          productType,
+          allowsSize: false,
+          supportedSizes: [],
+          allowsTemperature: false,
+          supportedTemperatures: [],
+          allowsMilk: false,
+          supportedMilks: [],
+          allowsSweetness: false,
+          allowsExtraShots: true,
+          allowsDrinkToppings: true,
+          supportedDrinkToppings: DRINK_TOPPINGS,
+          allowsCakeOptions: false,
+          allowsDoughnutOptions: false,
+          allowsPastryOptions: false,
+          categoryLabel: "Espresso Dessert",
+        };
+      }
       return {
         productType,
         allowsSize: true,

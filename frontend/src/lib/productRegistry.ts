@@ -408,24 +408,25 @@ export function dedupeAndMergeCatalog(
         ? String(roastRaw)
         : canonical?.roast_level || "House Craft";
 
+    const liveName = String(raw.name || "").trim();
+    const liveNotes = String(raw.tasting_notes || "").trim();
+    const liveTag = String(raw.tag || "").trim();
+
     const product: CatalogProduct = {
       id: raw.id || canonical?.id || canonicalSlug,
-      name: canonical?.name || String(raw.name).trim(),
+      name: liveName || canonical?.name || canonicalSlug,
       slug: canonical?.slug || canonicalSlug,
       category_name: raw.category_name || canonical?.category_name || "Signature Espresso",
       product_type: resolvedType,
       price: Number(raw.price) || canonical?.price || 200,
       origin: raw.origin || canonical?.origin || "Highland Harvest",
       roast_level: resolvedRoast,
-      tasting_notes:
-        canonical && (!raw.tasting_notes || String(raw.tasting_notes).length < canonical.tasting_notes.length)
-          ? canonical.tasting_notes
-          : raw.tasting_notes || canonical?.tasting_notes || "Artisanal single origin roast",
+      tasting_notes: liveNotes || canonical?.tasting_notes || "Artisanal single origin roast",
       is_available:
         raw.id && String(raw.id).startsWith("rec")
           ? Boolean(raw.is_available)
           : raw.is_available !== false,
-      tag: canonical?.tag || raw.tag || "Fresh",
+      tag: liveTag || canonical?.tag || "Fresh",
       image_url: getProductImage({ ...canonical, ...raw, slug: canonical?.slug || canonicalSlug }),
     };
 

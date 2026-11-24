@@ -20,7 +20,7 @@ export default function OurStoryPage() {
       </section>
 
       {/* Main Narrative */}
-      <OurStoryTeaser />
+      <OurStoryTeaser hideStoryLink />
 
       {/* Roasting Standards */}
       <section className="py-20 bg-[#FFFCF7] border-t border-[#E5DACB]">

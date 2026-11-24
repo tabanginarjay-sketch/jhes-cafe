@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { API_BASE_URL } from "@/lib/api";
-import { Plus, X, RefreshCw, Power } from "lucide-react";
+import { Plus, X, RefreshCw, Power, Truck } from "lucide-react";
 
 export default function AdminStaffPage() {
   const [staff, setStaff] = useState<any[]>([]);
@@ -105,7 +106,15 @@ export default function AdminStaffPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href="/admin/deliveries"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full border border-[#E5DACB] bg-white text-xs font-semibold text-[#173D2B] hover:bg-[#F5F0E7] transition-all"
+          >
+            <Truck className="w-3.5 h-3.5 text-[#315640]" />
+            <span>Delivery Drivers</span>
+          </Link>
+
           <button
             type="button"
             onClick={() => void loadStaff()}
