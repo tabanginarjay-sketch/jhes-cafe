@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -24,11 +24,15 @@ function RegisterForm() {
   const searchParams = useSearchParams();
   const rawRedirect = searchParams.get("redirect");
   const redirectTarget =
-    rawRedirect && rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
+    rawRedirect &&
+    rawRedirect.startsWith("/") &&
+    !rawRedirect.startsWith("//") &&
+    !rawRedirect.startsWith("/login") &&
+    !rawRedirect.startsWith("/register")
       ? rawRedirect
       : "/";
 
-  const { registerWithEmail } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, registerWithEmail } = useAuth();
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -40,6 +44,13 @@ function RegisterForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [registeredUser, setRegisteredUser] = useState<UserData | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user && !registeredUser) {
+      router.refresh();
+      router.replace(redirectTarget);
+    }
+  }, [authLoading, isAuthenticated, user, registeredUser, redirectTarget, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,8 +91,9 @@ function RegisterForm() {
       setRegisteredUser(created);
 
       // Auto-redirect to target page or home after celebration
+      router.refresh();
       setTimeout(() => {
-        router.push(redirectTarget);
+        router.replace(redirectTarget);
       }, 1600);
     } catch (err) {
       setErrorMessage(
@@ -93,6 +105,17 @@ function RegisterForm() {
       setIsSubmitting(false);
     }
   };
+
+  if ((authLoading || (isAuthenticated && user)) && !registeredUser) {
+    return (
+      <div className="py-24 flex flex-col items-center justify-center gap-3 bg-[#FFFCF7] min-h-[70vh]">
+        <div className="w-8 h-8 border-3 border-[#173D2B]/30 border-t-[#173D2B] rounded-full animate-spin" />
+        <p className="text-xs font-mono text-[#573B2C]">
+          {isAuthenticated ? "Already signed in — redirecting..." : "Checking your session..."}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="py-12 sm:py-20 flex-1 flex items-center justify-center bg-[#FFFCF7] px-4">

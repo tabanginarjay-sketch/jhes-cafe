@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Coffee,
   Package,
@@ -82,7 +83,8 @@ function formatMethodLabel(method?: string): string {
 }
 
 export default function MyOrdersPage() {
-  const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
+  const { user, isLoading: authLoading, refreshUser } = useAuth();
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +102,12 @@ export default function MyOrdersPage() {
         credentials: "include",
         cache: "no-store",
       });
+      if (res.status === 401) {
+        // Authoritative server session expired — sync AuthContext and redirect cleanly
+        await refreshUser();
+        router.replace("/login?redirect=/my-orders");
+        return;
+      }
       if (!res.ok) {
         throw new Error("Unable to retrieve your orders right now. Please try again.");
       }
@@ -127,7 +135,7 @@ export default function MyOrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, refreshUser, router]);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -135,8 +143,9 @@ export default function MyOrdersPage() {
     } else if (!authLoading && !user) {
       setOrders([]);
       setLoading(false);
+      router.replace("/login?redirect=/my-orders");
     }
-  }, [authLoading, user, loadOrders]);
+  }, [authLoading, user, loadOrders, router]);
 
   const activeOrders = useMemo(
     () =>

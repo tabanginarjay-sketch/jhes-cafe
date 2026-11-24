@@ -49,7 +49,16 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const STORAGE_KEY = "jhes_cafe_user";
 const TOKEN_KEY = "jhes_cafe_token";
+const AUTH_SYNC_KEY = "jhes_cafe_auth_sync";
 const LEGACY_KEYS = ["brew_and_co_user", "brew_and_co_token", "brew_and_co_last_device_email"];
+
+function broadcastAuthChange(event: "login" | "logout") {
+  try {
+    localStorage.setItem(AUTH_SYNC_KEY, `${event}:${Date.now()}`);
+  } catch {
+    // Ignore storage access errors
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
@@ -104,17 +113,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void initSession();
   }, [refreshUser]);
 
-  // Keep Header, Account, and Checkout synchronized when returning to browser tab
+  // Keep Header, Account, My Orders, and Checkout synchronized across focus and browser tabs
   useEffect(() => {
     if (typeof window === "undefined") return;
     const handleFocus = () => {
-      if (user) {
-        void refreshUser();
+      void refreshUser();
+    };
+    const handleStorage = (e: StorageEvent) => {
+      if (e.key === AUTH_SYNC_KEY || e.key === STORAGE_KEY) {
+        if (e.key === AUTH_SYNC_KEY && e.newValue?.startsWith("logout:")) {
+          setUser(null);
+          setSessionToken(null);
+        } else {
+          void refreshUser();
+        }
       }
     };
     window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
-  }, [user, refreshUser]);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [refreshUser]);
 
   const loginWithGoogle = useCallback(async (idToken: string, clientId?: string): Promise<UserData> => {
     setIsLoading(true);
@@ -125,6 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
       localStorage.setItem(TOKEN_KEY, resp.access_token);
       localStorage.setItem("jhes_cafe_last_device_email", resp.user.email);
+      broadcastAuthChange("login");
       return resp.user;
     } finally {
       setIsLoading(false);
@@ -141,6 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
         localStorage.setItem(TOKEN_KEY, resp.access_token);
         localStorage.setItem("jhes_cafe_last_device_email", resp.user.email);
+        broadcastAuthChange("login");
         return resp.user;
       } finally {
         setIsLoading(false);
@@ -158,6 +181,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
       localStorage.setItem(TOKEN_KEY, resp.access_token);
       localStorage.setItem("jhes_cafe_last_device_email", resp.user.email);
+      broadcastAuthChange("login");
       return resp.user;
     } finally {
       setIsLoading(false);
@@ -178,6 +202,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
       localStorage.setItem(TOKEN_KEY, resp.access_token);
       localStorage.setItem("jhes_cafe_last_device_email", resp.user.email);
+      broadcastAuthChange("login");
       return resp.user;
     } finally {
       setIsLoading(false);
@@ -196,6 +221,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(resp.user));
       localStorage.setItem(TOKEN_KEY, resp.access_token);
       localStorage.setItem("jhes_cafe_last_device_email", resp.user.email);
+      broadcastAuthChange("login");
       return resp.user;
     } finally {
       setIsLoading(false);
@@ -325,8 +351,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setUser(null);
     setSessionToken(null);
-    localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(TOKEN_KEY);
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(TOKEN_KEY);
+    } catch {}
+    broadcastAuthChange("logout");
   };
 
   const updateUserLocally = (updated: Partial<UserData>) => {

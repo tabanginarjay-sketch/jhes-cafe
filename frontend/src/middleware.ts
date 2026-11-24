@@ -77,25 +77,70 @@ async function verifySessionTokenEdge(token?: string | null): Promise<boolean> {
   }
 }
 
+const AUTH_ONLY_PATHS = new Set(["/login", "/register"]);
+
+function sanitizeRedirectTarget(raw?: string | null): string {
+  if (!raw) return "/";
+  try {
+    let decoded = decodeURIComponent(raw).trim();
+    if (decoded.startsWith("%")) decoded = decodeURIComponent(decoded).trim();
+    if (
+      decoded.startsWith("/") &&
+      !decoded.startsWith("//") &&
+      !decoded.startsWith("/login") &&
+      !decoded.startsWith("/register")
+    ) {
+      return decoded;
+    }
+  } catch {
+    // Ignore malformed redirect query
+  }
+  return "/";
+}
+
+function applyNoCacheHeaders(res: NextResponse): NextResponse {
+  res.headers.set("Cache-Control", "private, no-store, no-cache, must-revalidate");
+  res.headers.set("Pragma", "no-cache");
+  res.headers.set("Vary", "Cookie");
+  return res;
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
   const sessionCookie = req.cookies.get(SESSION_COOKIE_NAME)?.value;
   const isValid = await verifySessionTokenEdge(sessionCookie);
 
+  // Never serve /login or /register to an already-authenticated customer
+  if (AUTH_ONLY_PATHS.has(pathname)) {
+    if (isValid) {
+      const target = sanitizeRedirectTarget(req.nextUrl.searchParams.get("redirect"));
+      return applyNoCacheHeaders(NextResponse.redirect(new URL(target, req.url)));
+    }
+    return applyNoCacheHeaders(NextResponse.next());
+  }
+
+  // Protected customer routes (/account, /my-orders, /checkout, /order)
   if (!isValid) {
     const loginUrl = new URL("/login", req.url);
     const returnTo = `${pathname}${search}`;
     loginUrl.searchParams.set("redirect", returnTo);
-    const res = NextResponse.redirect(loginUrl);
+    const res = applyNoCacheHeaders(NextResponse.redirect(loginUrl));
     if (sessionCookie) {
       res.cookies.delete(SESSION_COOKIE_NAME);
     }
     return res;
   }
 
-  return NextResponse.next();
+  return applyNoCacheHeaders(NextResponse.next());
 }
 
 export const config = {
-  matcher: ["/account/:path*", "/my-orders/:path*", "/checkout/:path*", "/order/:path*"],
+  matcher: [
+    "/account/:path*",
+    "/my-orders/:path*",
+    "/checkout/:path*",
+    "/order/:path*",
+    "/login",
+    "/register",
+  ],
 };

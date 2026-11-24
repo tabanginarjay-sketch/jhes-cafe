@@ -61,12 +61,14 @@ export function Navbar() {
     setAccountMenuOpen(false);
     setMobileMenuOpen(false);
     await logout();
+    router.refresh();
     if (
       pathname.startsWith("/account") ||
       pathname.startsWith("/my-orders") ||
-      pathname.startsWith("/checkout")
+      pathname.startsWith("/checkout") ||
+      pathname.startsWith("/order")
     ) {
-      router.push("/");
+      router.replace("/");
     }
   };
 
@@ -94,6 +96,7 @@ export function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
+                  prefetch={link.href === "/my-orders" ? false : undefined}
                   className={`text-sm font-medium tracking-wide py-1 transition-all duration-300 ${
                     isActive
                       ? "text-[#173D2B] font-semibold border-b-2 border-[#173D2B]"
@@ -178,6 +181,7 @@ export function Navbar() {
                     <div className="py-1.5 px-2 space-y-0.5 text-xs font-medium text-[#173D2B]">
                       <Link
                         href="/account"
+                        prefetch={false}
                         role="menuitem"
                         onClick={() => setAccountMenuOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[#F5F0E7] transition-colors"
@@ -187,6 +191,7 @@ export function Navbar() {
                       </Link>
                       <Link
                         href="/account?tab=rewards"
+                        prefetch={false}
                         role="menuitem"
                         onClick={() => setAccountMenuOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[#F5F0E7] transition-colors"
@@ -196,6 +201,7 @@ export function Navbar() {
                       </Link>
                       <Link
                         href="/account?tab=card"
+                        prefetch={false}
                         role="menuitem"
                         onClick={() => setAccountMenuOpen(false)}
                         className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-[#F5F0E7] transition-colors"
@@ -222,6 +228,7 @@ export function Navbar() {
             ) : (
               <Link
                 href="/login"
+                prefetch={false}
                 className="hidden sm:flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#173D2B] hover:text-[#315640] px-3.5 py-2 rounded-full border border-[#E5DACB] hover:bg-[#F5F0E7] transition-all duration-200"
                 title="Sign In to Jhe's Cafe'"
               >
@@ -281,6 +288,7 @@ export function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
+                  prefetch={link.href === "/my-orders" ? false : undefined}
                   onClick={() => setMobileMenuOpen(false)}
                   className={`block px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                     isActive
@@ -312,6 +320,7 @@ export function Navbar() {
                 </div>
                 <Link
                   href="/account"
+                  prefetch={false}
                   onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#173D2B] hover:bg-[#F5F0E7]"
                 >
@@ -320,6 +329,7 @@ export function Navbar() {
                 </Link>
                 <Link
                   href="/account?tab=rewards"
+                  prefetch={false}
                   onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#173D2B] hover:bg-[#F5F0E7]"
                 >
@@ -328,6 +338,7 @@ export function Navbar() {
                 </Link>
                 <Link
                   href="/account?tab=card"
+                  prefetch={false}
                   onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#173D2B] hover:bg-[#F5F0E7]"
                 >

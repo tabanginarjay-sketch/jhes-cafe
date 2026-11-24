@@ -320,6 +320,7 @@ export function CartDrawer() {
               {user ? (
                 <Link
                   href="/checkout"
+                  prefetch={false}
                   onClick={() => setIsCartOpen(false)}
                   className="w-full rounded-full bg-[#173D2B] hover:bg-[#315640] text-[#F5F0E7] py-3.5 px-4 font-semibold text-xs tracking-wider uppercase flex items-center justify-center gap-2 transition-all duration-300 shadow-md hover:shadow-lg active:scale-95"
                 >

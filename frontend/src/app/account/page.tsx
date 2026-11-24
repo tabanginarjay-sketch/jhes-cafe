@@ -244,7 +244,8 @@ function AccountContent() {
 
   const handleSignOut = async () => {
     await logout();
-    router.push("/");
+    router.refresh();
+    router.replace("/");
   };
 
   if (isLoading) {
@@ -424,6 +425,7 @@ function AccountContent() {
               </Link>
               <Link
                 href="/my-orders"
+                prefetch={false}
                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-[#173D2B] text-[#173D2B] hover:bg-white transition-colors font-semibold"
               >
                 <ShoppingBag className="w-3.5 h-3.5" />

@@ -80,6 +80,7 @@ export function LoginRequiredModal() {
     setIsSubmitting(true);
     try {
       await loginWithEmail({ email: cleanEmail, password });
+      router.refresh();
       // CartContext detects the newly authenticated user and automatically adds the preserved customization.
       if (returnUrl && returnUrl !== pathname && returnUrl.startsWith("/")) {
         router.push(returnUrl);

@@ -36,6 +36,13 @@ export async function GET(
       return NextResponse.json({ detail: "Order not found" }, { status: 404 });
     }
 
+    // Never expose internal shopping cart drafts as submitted orders
+    const ordSt = String(order.status || "").toLowerCase().trim();
+    const ordNumUpper = String(order.order_number || "").toUpperCase().trim();
+    if (ordSt === "cart" || ordSt === "cart_cleared" || ordNumUpper.startsWith("CART-")) {
+      return NextResponse.json({ detail: "Order not found" }, { status: 404 });
+    }
+
     // 2. Fetch child OrderItems matching either Airtable order record ID OR order_number
     let items: any[] = [];
     try {

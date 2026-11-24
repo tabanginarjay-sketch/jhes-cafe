@@ -73,7 +73,7 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/my-orders" className="hover:text-[#C9AE8B] transition-colors">
+                <Link href="/my-orders" prefetch={false} className="hover:text-[#C9AE8B] transition-colors">
                   My Orders
                 </Link>
               </li>
@@ -93,7 +93,7 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/account" className="hover:text-[#C9AE8B] transition-colors">
+                <Link href="/account" prefetch={false} className="hover:text-[#C9AE8B] transition-colors">
                   My Account
                 </Link>
               </li>

@@ -17,42 +17,41 @@ function FacebookCallbackContent() {
   const exchangeStartedRef = useRef(false);
 
   useEffect(() => {
-    // If user is already authenticated, redirect smoothly immediately
-    if (isAuthenticated || user) {
-      const state = searchParams.get("state");
-      let target = "/";
-      if (state) {
-        try {
-          let decoded = decodeURIComponent(state);
-          if (decoded.startsWith("%")) decoded = decodeURIComponent(decoded);
-          if (decoded.startsWith("/") && !decoded.startsWith("//")) target = decoded;
-        } catch {
-          target = "/";
+    const sanitizeTarget = (rawState: string | null): string => {
+      if (!rawState) return "/";
+      try {
+        let decoded = decodeURIComponent(rawState);
+        if (decoded.startsWith("%")) decoded = decodeURIComponent(decoded);
+        if (
+          decoded.startsWith("/") &&
+          !decoded.startsWith("//") &&
+          !decoded.startsWith("/login") &&
+          !decoded.startsWith("/register")
+        ) {
+          return decoded;
         }
+      } catch {
+        // fallback to home
       }
+      return "/";
+    };
+
+    const state = searchParams.get("state");
+    const targetUrl = sanitizeTarget(state);
+
+    // If user is already authenticated via verified server session, redirect smoothly immediately
+    if (isAuthenticated && user) {
       setStatus("success");
-      const t = setTimeout(() => router.push(target), 300);
+      router.refresh();
+      const t = setTimeout(() => router.replace(targetUrl), 250);
       return () => clearTimeout(t);
     }
 
     if (exchangeStartedRef.current) return;
 
     const code = searchParams.get("code");
-    const state = searchParams.get("state");
     const error = searchParams.get("error");
     const errorDescription = searchParams.get("error_description");
-
-    // Cleanly sanitize target redirect URL
-    let targetUrl = "/";
-    if (state) {
-      try {
-        let decoded = decodeURIComponent(state);
-        if (decoded.startsWith("%")) decoded = decodeURIComponent(decoded);
-        if (decoded.startsWith("/") && !decoded.startsWith("//")) targetUrl = decoded;
-      } catch {
-        targetUrl = "/";
-      }
-    }
 
     if (error) {
       exchangeStartedRef.current = true;
@@ -66,16 +65,6 @@ function FacebookCallbackContent() {
     }
 
     if (!code) {
-      try {
-        const stored = localStorage.getItem("jhes_cafe_user");
-        if (stored) {
-          setStatus("success");
-          const t = setTimeout(() => router.push(targetUrl), 300);
-          return () => clearTimeout(t);
-        }
-      } catch {
-        // ignore
-      }
       exchangeStartedRef.current = true;
       setStatus("error");
       setErrorMessage("No authorization code received from Facebook. Please try signing in again.");
@@ -91,23 +80,12 @@ function FacebookCallbackContent() {
         await loginWithFacebook({ code: code as string, redirect_uri: redirectUri });
         if (!isMounted) return;
         setStatus("success");
+        router.refresh();
         setTimeout(() => {
-          router.push(targetUrl);
-        }, 400);
+          router.replace(targetUrl);
+        }, 350);
       } catch (err) {
         if (!isMounted) return;
-
-        try {
-          const stored = localStorage.getItem("jhes_cafe_user");
-          if (stored) {
-            setStatus("success");
-            setTimeout(() => router.push(targetUrl), 300);
-            return;
-          }
-        } catch {
-          // ignore
-        }
-
         setStatus("error");
         setErrorMessage(
           err instanceof Error

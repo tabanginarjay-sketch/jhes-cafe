@@ -102,8 +102,19 @@ export async function GET(req: NextRequest) {
 
   try {
     let formula: string | undefined;
-    if (!admin && user?.email) {
-      const safeEmail = escapeFormulaString(user.email.toLowerCase().trim());
+    let resolvedCustomerId: string | null = null;
+
+    if (!admin && user) {
+      // Always resolve canonical Airtable customer identity from the server-verified session
+      const canonical = await getCanonicalCustomer(
+        user.email,
+        user.name,
+        null,
+        user.auth_provider || "email",
+        user.avatar_url
+      );
+      resolvedCustomerId = canonical.id;
+      const safeEmail = escapeFormulaString(canonical.email.toLowerCase().trim());
       formula = `LOWER({customer_email}) = '${safeEmail}'`;
     }
 
@@ -118,6 +129,7 @@ export async function GET(req: NextRequest) {
       })
       .map((r: any) => ({
         ...r,
+        ...(resolvedCustomerId ? { customer_id: resolvedCustomerId } : {}),
         status: r.status ? String(r.status).trim() : "pending",
         payment_status: r.payment_status ? String(r.payment_status).trim() : "pending",
       }));

@@ -440,6 +440,7 @@ export default function CartPage() {
                 {/* Proceed to Dedicated Checkout */}
                 <Link
                   href="/checkout"
+                  prefetch={false}
                   className="w-full py-4 rounded-full bg-[#173D2B] hover:bg-[#315640] text-white text-xs font-semibold uppercase tracking-wider transition-all shadow-md hover:shadow-xl active:scale-98 flex items-center justify-center gap-2"
                 >
                   <span>Proceed to Checkout</span>

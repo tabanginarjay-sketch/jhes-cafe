@@ -18,10 +18,29 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const rawRedirect = searchParams.get("redirect");
   const redirectTarget =
-    rawRedirect && rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
+    rawRedirect &&
+    rawRedirect.startsWith("/") &&
+    !rawRedirect.startsWith("//") &&
+    !rawRedirect.startsWith("/login") &&
+    !rawRedirect.startsWith("/register")
       ? rawRedirect
       : "/";
-  const { loginWithEmail, loginWithGoogle, loginWithGoogleCode } = useAuth();
+  const {
+    user,
+    isAuthenticated,
+    isLoading: authLoading,
+    loginWithEmail,
+    loginWithGoogle,
+    loginWithGoogleCode,
+  } = useAuth();
+
+  // Never display the login form to an already-authenticated customer
+  useEffect(() => {
+    if (!authLoading && isAuthenticated && user) {
+      router.refresh();
+      router.replace(redirectTarget);
+    }
+  }, [authLoading, isAuthenticated, user, redirectTarget, router]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -65,7 +84,8 @@ function LoginForm() {
               setIsSubmitting(true);
               try {
                 await loginWithGoogle(response.credential, googleClientId);
-                router.push(redirectTarget);
+                router.refresh();
+                router.replace(redirectTarget);
               } catch (err) {
                 setErrorMessage(err instanceof Error ? err.message : "Google authentication failed.");
               } finally {
@@ -110,7 +130,8 @@ function LoginForm() {
     setIsSubmitting(true);
     try {
       await loginWithEmail({ email: cleanEmail, password });
-      router.push(redirectTarget);
+      router.refresh();
+      router.replace(redirectTarget);
     } catch (err) {
       setErrorMessage(
         err instanceof Error
@@ -148,7 +169,8 @@ function LoginForm() {
               try {
                 // Google Identity Services popup mode explicitly mandates 'postmessage' as redirect_uri
                 await loginWithGoogleCode(response.code, "postmessage", clientId);
-                router.push(redirectTarget);
+                router.refresh();
+                router.replace(redirectTarget);
               } catch (err) {
                 setErrorMessage(err instanceof Error ? err.message : "Google authentication failed.");
               } finally {
@@ -223,6 +245,17 @@ function LoginForm() {
       setIsForgotLoading(false);
     }
   };
+
+  if (authLoading || (isAuthenticated && user)) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center gap-3 px-4">
+        <div className="w-8 h-8 border-3 border-[#173D2B]/30 border-t-[#173D2B] rounded-full animate-spin" />
+        <p className="text-xs font-mono text-[#573B2C]">
+          {isAuthenticated ? "Session active — redirecting..." : "Checking your session..."}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <>
